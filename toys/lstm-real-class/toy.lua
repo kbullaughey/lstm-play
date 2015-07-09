@@ -6,13 +6,27 @@ plutils = require 'pl.utils'
 tablex = require 'pl.tablex'
 lstm = require 'lstm'
 
+use_cuda, cunn = require('fbcunn')
+if use_cuda then
+  deviceParams = cutorch.getDeviceProperties(1)
+end
+
+-- Push data to the GPU if necessary
+function g_localize(z)
+  if use_cuda then
+    return z:cuda()
+  else
+    return z
+  end
+end
+
 inputs = {}
 total_count = 0
 train_points = 0
 lines = plutils.readlines('noisy_inputs.txt')
 for i,line in pairs(lines) do
   local vals = plutils.split(line, ',')
-  inputs[i] = torch.Tensor(tablex.map(tonumber, vals))
+  inputs[i] = g_localize(torch.Tensor(tablex.map(tonumber, vals)))
   total_count = total_count + 1
 end
 
@@ -21,7 +35,7 @@ total_count = 0
 lines = plutils.readlines('true_inputs.txt')
 for i,line in pairs(lines) do
   local vals = plutils.split(line, ',')
-  true_inputs[i] = torch.Tensor(tablex.map(tonumber, vals))
+  true_inputs[i] = g_localize(torch.Tensor(tablex.map(tonumber, vals)))
   total_count = total_count + 1
 end
 
@@ -30,7 +44,7 @@ end
 -- CrossEntropyCriterion.
 num_classes = 10
 outputs = tablex.map(tonumber, plutils.readlines('outputs.txt'))
-outputs = torch.Tensor(outputs)
+outputs = g_localize(torch.Tensor(outputs))
 output_range = outputs:max() - outputs:min() + 1e-08
 output_classes = (outputs - outputs:min() + 1e-09):div(output_range/num_classes):ceil()
 output_tuples = torch.cat(outputs, output_classes, 2)
@@ -240,6 +254,7 @@ function net:confusion(dataset)
   return confusion
 end
 
+net = g_localize(net)
 -- Get access to net's parameters, after which we can enable sharing. Enabling
 -- sharing first doesn't work because calling getParameters, changes the storage.
 net.par_vec, net.grad_par_vec = net:getParameters()
