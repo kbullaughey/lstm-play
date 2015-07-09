@@ -238,8 +238,10 @@ function net:confusion(dataset)
   return confusion
 end
 
--- Get access to net's parameters
+-- Get access to net's parameters, after which we can enable sharing. Enabling
+-- sharing first doesn't work because calling getParameters, changes the storage.
 net.par_vec, net.grad_par_vec = net:getParameters()
+net.chain:share()
 
 -- Train the model
 trainer:train(net, train_dataset)
