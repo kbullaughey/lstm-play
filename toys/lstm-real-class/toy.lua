@@ -117,7 +117,9 @@ function trainer:hookIteration(iter, err)
 end
 
 function trainer:train(net, dataset, reset)
-  reset = reset or true
+  if reset == nil then
+    reset = true
+  end
   local iteration = 1
   local lr = self.learningRate
   local shuffledIndices = torch.randperm(dataset:size(), 'torch.LongTensor')
@@ -247,7 +249,7 @@ net.chain:share()
 trainer:train(net, train_dataset)
 
 -- See how it did
-net:confusion(test_dataset)
+print(net:confusion(test_dataset))
 
 
 
