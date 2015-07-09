@@ -13,15 +13,21 @@ function MemoryChain:__init(inputSize, hiddenSize, maxLength)
   -- make enough lstm cells for the longest sequence
   for i=1,maxLength do
     self.lstms[i] = lstm.MemoryCell(inputSize, hiddenSize)
-    if i == 1 then
-      self.lstm_params, self.lstm_grad_params = self.lstms[1]:parameters()
-    else
-      -- share parameters
-      local clone_params, clone_grad_params = self.lstms[i]:parameters()
-      for k=1, #clone_params do
-        clone_params[k]:set(self.lstm_params[k])
-        clone_grad_params[k]:set(self.lstm_grad_params[k])
-      end
+  end
+  -- We will use the firt cell as the storage for shared parameters, but
+  -- we can't share them until later, after the whole network is created 
+  -- because getParameters will point the tensors to new storage.
+  self.lstm_params, self.lstm_grad_params = self.lstms[1]:parameters()
+end
+
+-- share parameters among all memory cells
+function MemoryChain:share()
+  -- make all other parameter tensors reference that memory.
+  for i=2,self.maxLength do
+    local cell_params, cell_grad_params = self.lstms[i]:parameters()
+    for k=1, #cell_params do
+      cell_params[k]:set(self.lstm_params[k])
+      cell_grad_params[k]:set(self.lstm_grad_params[k])
     end
   end
 end
