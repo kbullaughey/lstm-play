@@ -73,7 +73,7 @@ function buildDataset(x, y)
   function dataset:size()
     return n
   end
-  for i=1,dataset:size() do 
+  for i=1,dataset:size() do
     dataset[i] = {x[i]:view(-1,1), y:narrow(1,i,1)}
   end
   return dataset
@@ -86,7 +86,9 @@ true_dataset = buildDataset(x_true_n, output_tuples)
 n_h = 20
 max_len = 4
 
-net = {}
+-- Generic module
+net = nn.Module.new()
+
 net.classes = num_classes
 -- LSTM
 x = nn.Identity()()
@@ -106,17 +108,16 @@ net.predict = nn.gModule({chainOut}, {predictions})
 rC = nn.MSECriterion()
 cC = nn.ClassNLLCriterion()
 net.criterion = nn.ParallelCriterion():add(rC):add(cC)
--- Get access to net's parameters
-net.predict.par_vec, net.predict.grad_par_vec = net.predict:getParameters()
 
 trainer = {}
-trainer.maxIteration = 25
+trainer.maxIteration = 30
 trainer.learningRate = 0.01
 function trainer:hookIteration(iter, err)
   print("# current error = " .. err)
 end
 
-function trainer:train(net, dataset)
+function trainer:train(net, dataset, reset)
+  reset = reset or true
   local iteration = 1
   local lr = self.learningRate
   local shuffledIndices = torch.randperm(dataset:size(), 'torch.LongTensor')
@@ -124,17 +125,19 @@ function trainer:train(net, dataset)
   local chainMod = net.chainMod
   local predict = net.predict
   local criterion = net.criterion
+  if reset then
+    net:reset()
+  end
   while true do
     local currentError = 0
     for t = 1,dataset:size() do
       local example = dataset[shuffledIndices[t]]
 
-      net:forward(unpack(example))
+      net:forward(example)
       net:backward(unpack(example))
 
       -- Update parameters
-      chain.lstm_par_vec:add(chain.lstm_grad_par_vec:mul(-lr))
-      predict.par_vec:add(predict.grad_par_vec:mul(-lr))
+      net.par_vec:add(net.grad_par_vec:mul(-lr))
       currentError = currentError + criterion.output
     end
     currentError = currentError / dataset:size()
@@ -151,11 +154,48 @@ function trainer:train(net, dataset)
   end
 end
 
-function net:forward(input, targets)
+function net:parameters()
+  local chain_par, chain_grad_par = self.chain:parameters()
+  local predict_par, predict_grad_par = self.predict:parameters()
+  local par = {}
+  local grad_par = {}
+  local j = 1
+  for i=1, #chain_par do
+    par[j] = chain_par[i]
+    grad_par[j] = chain_grad_par[i]
+    j = j + 1
+  end
+  for i=1, #predict_par do
+    par[j] = predict_par[i]
+    grad_par[j] = predict_grad_par[i]
+    j = j + 1
+  end
+  return par, grad_par
+end
+
+function net:updateOutput(input_and_target)
+  local input, targets = unpack(input_and_target)
   targets = self:splitTargets(targets)
   self.chainMod:forward(input)
   self.predict:forward(self.chainMod.output)
-  return self.criterion:forward(self.predict.output, targets)
+  self.output = self.criterion:forward(self.predict.output, targets)
+  return self.output
+end
+
+function net:updateGradInput(input, targets)
+  targets = self:splitTargets(targets)
+  self:zeroGradParameters()
+  self.criterion:backward(self.predict.output, targets)
+  self.predict:backward(self.chain.output, self.criterion.gradInput)
+  self.chainMod:backward(input, self.predict.gradInput)
+  self.gradInput = self.chainMod.gradInput
+  return self.gradInput
+end
+
+function net:reset(radius)
+  radius = radius or 0.7
+  self:zeroGradParameters()
+  self.par_vec:uniform(-radius, radius)
 end
 
 function net:splitTargets(targets)
@@ -164,19 +204,10 @@ function net:splitTargets(targets)
   return {targetReal, targetClass}
 end
 
-function net:backward(input, targets)
-  targets = self:splitTargets(targets)
-  self.chain:zeroGradParameters()
-  self.predict:zeroGradParameters()
-  self.criterion:backward(self.predict.output, targets)
-  self.predict:backward(self.chain.output, self.criterion.gradInput)
-  self.chainMod:backward(input, self.predict.gradInput)
-end
-
 function net:predictionError(dataset)
   local err = 0
   for i=1, dataset:size() do
-    self:forward(unpack(dataset[i]))
+    self:forward(dataset[i])
     err = err + self.criterion.output
   end
   return err / dataset:size()
@@ -185,8 +216,7 @@ end
 function net:classify(dataset)
   local predicted_classes = torch.Tensor(dataset:size())
   for i=1, dataset:size() do
-    local input, target = unpack(dataset[i])
-    net:forward(input, target)
+    net:forward(dataset[i])
     local odds = net.predict.output[2]
     _, cls = torch.max(nn.LogSoftMax():forward(odds), 2)
     predicted_classes[i] = cls
@@ -208,11 +238,14 @@ function net:confusion(dataset)
   return confusion
 end
 
+-- Get access to net's parameters
+net.par_vec, net.grad_par_vec = net:getParameters()
+
 -- Train the model
 trainer:train(net, train_dataset)
 
 -- See how it did
-net:confusion(test)
+net:confusion(test_dataset)
 
 
 
