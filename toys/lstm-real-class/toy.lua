@@ -1,14 +1,19 @@
 -- Here I try modeling two criteria at once, one real and one a discrete version
 -- of that. The main motivation is to try predicting multiple things at once.
 
+use_cuda = false
 require 'optim'
 plutils = require 'pl.utils'
 tablex = require 'pl.tablex'
 lstm = require 'lstm'
 
-use_cuda, cunn = require('fbcunn')
+-- Use cuda if we ask for it and fbcunn is installed
+if use_cuda then
+  use_cuda, cunn = require('fbcunn')
+end
 if use_cuda then
   deviceParams = cutorch.getDeviceProperties(1)
+  lstm.cuda()
 end
 
 -- Push data to the GPU if necessary
@@ -47,7 +52,9 @@ outputs = tablex.map(tonumber, plutils.readlines('outputs.txt'))
 outputs = g_localize(torch.Tensor(outputs))
 output_range = outputs:max() - outputs:min() + 1e-08
 output_classes = (outputs - outputs:min() + 1e-09):div(output_range/num_classes):ceil()
-output_tuples = torch.cat(outputs, output_classes, 2)
+output_tuples = g_localize(torch.Tensor(outputs:size(1), 2))
+output_tuples:select(2,1):copy(outputs)
+output_tuples:select(2,2):copy(output_classes)
 
 -- Decide on the train/test split
 test_frac = 0.3
@@ -97,7 +104,7 @@ train_dataset = buildDataset(x_train_n, y_train)
 test_dataset = buildDataset(x_test_n, y_test)
 true_dataset = buildDataset(x_true_n, output_tuples)
 
-n_h = 20
+n_h = 100
 max_len = 4
 
 -- Generic module
@@ -124,7 +131,7 @@ cC = nn.ClassNLLCriterion()
 net.criterion = nn.ParallelCriterion():add(rC):add(cC)
 
 trainer = {}
-trainer.maxIteration = 30
+trainer.maxIteration = 4
 trainer.learningRate = 0.01
 function trainer:hookIteration(iter, err)
   print("# current error = " .. err)
@@ -205,6 +212,9 @@ function net:updateGradInput(input, targets)
   self.predict:backward(self.chain.output, self.criterion.gradInput)
   self.chainMod:backward(input, self.predict.gradInput)
   self.gradInput = self.chainMod.gradInput
+  if use_cuda then
+    cutorch.synchronize()
+  end
   return self.gradInput
 end
 
@@ -230,11 +240,15 @@ function net:predictionError(dataset)
 end
 
 function net:classify(dataset)
-  local predicted_classes = torch.Tensor(dataset:size())
+  local predicted_classes = g_localize(torch.Tensor(dataset:size()))
   for i=1, dataset:size() do
     net:forward(dataset[i])
     local odds = net.predict.output[2]
-    _, cls = torch.max(nn.LogSoftMax():forward(odds), 2)
+    local softmax = nn.LogSoftMax()
+    if use_cuda then 
+      softmax = softmax:cuda()
+    end
+    _, cls = torch.max(softmax:forward(odds), 2)
     predicted_classes[i] = cls
   end
   return predicted_classes

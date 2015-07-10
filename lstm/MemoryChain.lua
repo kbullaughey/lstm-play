@@ -43,22 +43,10 @@ function MemoryChain:parameters()
   return self.lstm_params, self.lstm_grad_params
 end
 
--- Choose a tensor constructor
-function MemoryChain:Tensor()
-  local t = torch.type(self.output)
-  if t == "torch.CudaTensor" then
-    return torch.CudaTensor
-  elseif t == "torch.FloatTensor" then
-    return torch.FloatTensor
-  else
-    return torch.Tensor
-  end
-end
-
 function MemoryChain:updateOutput(input)
   -- Use self.output for a cue about what type of Tensor's to use
-  local h = self:Tensor()(1, self.hiddenSize):zero()
-  local c = self:Tensor()(1, self.hiddenSize):zero()
+  local h = lstm.Tensor()(1, self.hiddenSize):zero()
+  local c = lstm.Tensor()(1, self.hiddenSize):zero()
   self.hidden_states = {[0] = h}
   self.memories = {[0] = c}
   local len = input:size(1)
@@ -76,7 +64,7 @@ end
 function MemoryChain:updateGradInput(input, gradOutput)
   local h,c
   local len = input:size(1)
-  self.gradInput = self:Tensor()(len, self.inputSize)
+  self.gradInput = lstm.Tensor()(len, self.inputSize)
   for i=len,1,-1 do
     local x = input[i]
     h = self.hidden_states[i-1]
