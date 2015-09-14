@@ -1,0 +1,12 @@
+# Site settings
+title: Learning about LSTMs using Torch
+email: kbullaughey@gmail.com
+description: > # this means to ignore newlines until "baseurl:"
+  Playing with LSTMs and other neural nets in Torch.
+baseurl: "/lstm-play" # the subpath of your site, e.g. /blog/
+url: "http://kbullaughey.github.io" # the base hostname & protocol for your site
+twitter_username: kbullaughey
+github_username:  kbullaughey
+
+# Build settings
+markdown: kramdown
