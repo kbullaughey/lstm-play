@@ -4,4 +4,20 @@ layout: default
 
 <div class="home">
 
+  <p>When first learning about LSTMs I created some toy models to help me learn how LSTMs are like the more basic types of neural networks, such as RNNs and MLPs. I was also teaching myself Lua and Torch at the same time, and the result is this tutorial.</p>
+
+  <p>We'll first first attack a toy modeling problem using a multi-layer perceptron, pretty much the simplest type of neural net. Then we'll progress to recursive neuran lets (RNN) and finally the long-term short-term memory (LSTM). But to begin, we'll need a toy problem to model.</p>
+
+  {% assign sorted_pages = site.pages | sort:"name" %}
+  <ol class='outline'>
+    {% for page in sorted_pages %}
+      {% if page.title %}
+        <li>
+          <a class="page-link" href="{{ page.url | prepend: site.baseurl }}">
+            {{ page.title }}
+          </a>
+        </li>
+      {% endif %}
+    {% endfor %}
+  </ol>
 </div>
