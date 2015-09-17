@@ -1,5 +1,5 @@
 package = "lstm"
-version = "0.1-0"
+version = "0.1-1"
 
 source = {
   url = '...'
@@ -13,7 +13,8 @@ description = {
 }
 
 dependencies = {
-  "torch >= 7.0"
+  "torch >= 7.0",
+  "penlight >= 1.3"
 }
 
 build = {
