@@ -63,7 +63,8 @@ end
 -- forward parameters and one for the accumulating gradient estimates. Each
 -- table has an entry for each layer.
 function MemoryChain:parameters()
-  return self.lstmParams, self.lstmGradParams
+  return nn.FlattenTable():forward(self.lstmParams),
+    nn.FlattenTable():forward(self.lstmGradParams)
 end
 
 -- Share parameters among all memory cells of each layer. Parameters are not
@@ -194,9 +195,6 @@ function MemoryChain:updateGradInput(tuple, upstreamGradOutput)
   -- we're back-propagating.
   local _, lengths = unpack(tuple)
   local x,h,c
-  if input:dim() ~= 3 then
-    error("MemoryChain:updageGradInput is expecting a 3D input tensor")
-  end
 
   -- Storage for the gradient wrt inputs of the whole chain.
   self.gradInput = lstm.Tensor()(self.batchSize, self.len, self.inputSize)
@@ -225,15 +223,15 @@ function MemoryChain:updateGradInput(tuple, upstreamGradOutput)
 
   for l=topLayer,1,-1 do
     local thisHiddenSize = self.hiddenSizes[l]
-    hUpstream:resize(self.batchSize, self.len, thisHiddenSize)
-    cUpstream:resize(self.batchSize, self.len, thisHiddenSize)
+    hUpstream:resize(self.batchSize, thisHiddenSize)
+    cUpstream:resize(self.batchSize, thisHiddenSize)
 
     -- Work our way back in time for this layer.
     for t=self.len,1,-1 do
       local currentCell = self.lstms[l][t]
 
       hUpstream:zero()
-      cUptream:zero()
+      cUpstream:zero()
 
       x = self.inputs[l][t]
       h = self.hiddenStates[t-1]
@@ -251,9 +249,9 @@ function MemoryChain:updateGradInput(tuple, upstreamGradOutput)
       end
 
       if t < self.len then
-        local cellToMyRight = self.ltms[l][t+1]
+        local cellToMyRight = self.lstms[l][t+1]
         hUpstream:add(cellToMyRight.gradInput[2])
-        cUpstream:add(cellToMyRight.gradInputs[3])
+        cUpstream:add(cellToMyRight.gradInput[3])
       end
 
       -- Run the LSTM cell backward
