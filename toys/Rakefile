@@ -1,0 +1,135 @@
+file 'toy/fixed_width_3.t7' => %w(toy/fixed_width_3.sh toy/fixed_width_3.lua toy/toy.lua) do
+  Dir.chdir 'toy' do
+    sh "./fixed_width_3.sh"
+  end
+end
+
+toy_figures = %w(
+  figure_1.pdf
+  figure_2.pdf
+  figure_3.pdf
+  figure_4a.pdf
+  figure_4b.pdf
+  figure_4c.pdf).collect{|f| "toy/#{f}"}
+
+toy_figures.each do |f|
+  file f => %w(toy/visualize.R) do
+    Rake::Task['toy:visualize'].invoke
+  end
+end
+
+simulated_datasets = %w(toy/fixed_width_3.t7)
+trained_models = %w(mlp/trained_model-1_layer.t7)
+
+namespace :toy do
+  desc "Simulate width 3 fixed-width examples"
+  task :fixed_width_3 => ['toy/fixed_width_3.t7']
+
+  desc "Generate plots visualizing toy model"
+  task :visualize do
+    Dir.chdir 'toy' do
+      sh "R --vanilla < visualize.R"
+      sh "../scripts/png_figures.sh"
+    end
+  end
+end
+
+%w(mlp/trained_model-1_layer.t7 mlp/grid_predictions-1_layer.csv).each do |f|
+  file f => %w(mlp/model-1_layer.sh mlp/model-1_layer.lua toy/fixed_width_3.t7) do
+    Rake::Task['mlp:one_layer:train'].invoke
+  end
+end
+
+%w(mlp/trained_model-1_layer-fail.t7 mlp/grid_predictions-1_layer-fail.csv).each do |f|
+  file f => %w(mlp/model-1_layer-fail.sh mlp/model-1_layer.lua toy/fixed_width_3.t7) do
+    Rake::Task['mlp:one_layer_fail:train'].invoke
+  end
+end
+
+%w(mlp/trained_model-2_layer.t7 mlp/grid_predictions-2_layer.csv).each do |f|
+  file f => %w(mlp/model-2_layer.sh mlp/model-2_layer.lua toy/fixed_width_3.t7) do
+    Rake::Task['mlp:two_layer:train'].invoke
+  end
+end
+
+mlp_figures = %w(mlp/model-1_layer.pdf mlp/model-2_layer.pdf mlp/model-1_layer-fail.pdf)
+
+file 'mlp/model-1_layer.pdf' => %w(mlp/grid_predictions-1_layer.csv mlp/plot_predictions.R) do
+  Rake::Task['mlp:one_layer:visualize'].invoke
+end
+
+file 'mlp/model-1_layer-fail.pdf' =>
+    %w(mlp/grid_predictions-1_layer-fail.csv mlp/plot_predictions.R) do
+  Rake::Task['mlp:one_layer_fail:visualize'].invoke
+end
+
+file 'mlp/model-2_layer.pdf' => %w(mlp/grid_predictions-2_layer.csv mlp/plot_predictions.R) do
+  Rake::Task['mlp:two_layer:visualize'].invoke
+end
+
+namespace :mlp do
+  namespace "one_layer" do
+    desc "Train a 1-layer model"
+    task :train do
+      Dir.chdir "mlp" do
+        sh "./model-1_layer.sh"
+      end
+    end
+
+    desc "Visualize how well it did"
+    task :visualize do
+      Dir.chdir "mlp" do
+        sh "R --vanilla --args grid_predictions-1_layer.csv model-1_layer.pdf < plot_predictions.R"
+      end
+    end
+  end
+
+  namespace "one_layer_fail" do
+    desc "Train a 1-layer model to show how it can fail"
+    task :train do
+      Dir.chdir "mlp" do
+        sh "./model-1_layer-fail.sh"
+      end
+    end
+
+    desc "Visualize how well it did"
+    task :visualize do
+      Dir.chdir "mlp" do
+        in_fn = 'grid_predictions-1_layer-fail.csv'
+        out_fn = 'model-1_layer-fail.pdf'
+        sh "R --vanilla --args #{in_fn} #{out_fn} < plot_predictions.R"
+      end
+    end
+  end
+
+  namespace "two_layer" do
+    desc "Train a 2-layer model"
+    task :train do
+      Dir.chdir "mlp" do
+        sh "./model-2_layer.sh"
+      end
+    end
+
+    desc "Visualize how well it did"
+    task :visualize do
+      Dir.chdir "mlp" do
+        sh "R --vanilla --args grid_predictions-2_layer.csv model-2_layer.pdf < plot_predictions.R"
+      end
+    end
+  end
+end
+
+namespace :rnn do
+end
+
+namespace :lstm do
+end
+
+everything =
+  toy_figures +
+  simulated_datasets +
+  trained_models +
+  mlp_figures +
+  []
+
+task :default => everything
