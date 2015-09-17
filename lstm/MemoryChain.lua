@@ -55,7 +55,7 @@ function MemoryChain:__init(inputSize, hiddenSizes, maxLength)
     self.lstmParams[l], self.lstmGradParams[l] = self.lstms[l][1]:parameters()
 
     -- The output of one layer is the input to the next.
-    prevLayerSize = thisHiddenSize
+    prevLayerSize = thisLayerSize
   end
 end
 
@@ -259,7 +259,9 @@ function MemoryChain:updateGradInput(tuple, upstreamGradOutput)
 
       -- If we're the bottom layer, save gradInput[1] in the gradInput for the
       -- whole chain.
-      self.gradInput:select(2,t):copy(currentCell.gradInput[1])
+      if l == 1 then
+        self.gradInput:select(2,t):copy(currentCell.gradInput[1])
+      end
     end
   end
   return self.gradInput
