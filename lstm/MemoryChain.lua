@@ -241,7 +241,7 @@ function MemoryChain:updateGradInput(tuple, upstreamGradOutput)
         -- Replicate our mask of which batch members receive errors from the
         -- upstream gradient at this time step. (replicated hiddenSize times)
         local terminalColumn = terminal:select(2, t):contiguous():view(-1,1)
-        local upstreamSelect = torch.mm(terminalColumn, torch.ones(1,thisHiddenSize))
+        local upstreamSelect = torch.mm(terminalColumn, lstm.localize(torch.ones(1,thisHiddenSize)))
         hUpstream:add(upstreamSelect:cmul(upstreamGradOutput))
       else
         local cellAboveMe = self.lstms[l+1][t]
