@@ -40,29 +40,30 @@ local function MemoryCell(input_size, hidden_size)
   local xh2h_learning = nn.SelectTable(3)(xh2h_split_by_gate)
   local xh2h_o_gate   = nn.SelectTable(4)(xh2h_split_by_gate)
 
-  -- In three cases, we use sums like W_c * prev_c, we use one linear map for all
+  -- In two cases, we use sums like W_c * prev_c, we use one linear map for these
   -- cases and then split. The inputs to this map will have dimension BxQ and the
-  -- outputs will have dimension Bx3Q. We reshape this to Bx3xQ and split into three
+  -- outputs will have dimension Bx2Q. We reshape this to Bx2xQ and split into two
   -- BxQ streams.
-  local c2h = nn.Linear(hidden_size, hidden_size*3)(prev_c)
-  local c2h_reshaped = nn.Reshape(3, hidden_size, true)(c2h)
-  local c2h_split_by_gate = nn.SplitTable(2)(c2h_reshaped)
+  local prev_c2h = nn.Linear(hidden_size, hidden_size*2)(prev_c)
+  local prev_c2h_reshaped = nn.Reshape(2, hidden_size, true)(prev_c2h)
+  local prev_c2h_split_by_gate = nn.SplitTable(2)(prev_c2h_reshaped)
 
   -- Separate out the split tables for the linear maps involving the memory.
-  local c2h_i_gate   = nn.SelectTable(1)(c2h_split_by_gate)
-  local c2h_f_gate   = nn.SelectTable(2)(c2h_split_by_gate)
-  local c2h_o_gate   = nn.SelectTable(3)(c2h_split_by_gate)
+  local prev_c2h_i_gate   = nn.SelectTable(1)(prev_c2h_split_by_gate)
+  local prev_c2h_f_gate   = nn.SelectTable(2)(prev_c2h_split_by_gate)
 
   -- Compute the gate values
-  local i_gate = nn.Sigmoid()(nn.CAddTable()({xh2h_i_gate, c2h_i_gate})) -- Eq. (7)
-  local f_gate = nn.Sigmoid()(nn.CAddTable()({xh2h_f_gate, c2h_f_gate})) -- Eq. (8)
-  local o_gate = nn.Sigmoid()(nn.CAddTable()({xh2h_o_gate, c2h_o_gate})) -- Eq. (10)
+  local i_gate = nn.Sigmoid()(nn.CAddTable()({xh2h_i_gate, prev_c2h_i_gate})) -- Eq. (7)
+  local f_gate = nn.Sigmoid()(nn.CAddTable()({xh2h_f_gate, prev_c2h_f_gate})) -- Eq. (8)
 
   -- Update the memory, Eq. (9)
   local c = nn.CAddTable()({
     nn.CMulTable()({f_gate, prev_c}),
     nn.CMulTable()({i_gate, nn.Tanh()(xh2h_learning)})
   })
+
+  local c2h_o_gate = nn.Linear(hidden_size, hidden_size)(c)
+  local o_gate = nn.Sigmoid()(nn.CAddTable()({xh2h_o_gate, c2h_o_gate})) -- Eq. (10)
   
   -- Squash the memory and then mask it with the output gate. Eq. (11)
   local h = nn.CMulTable()({o_gate, nn.Tanh()(c)})

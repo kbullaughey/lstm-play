@@ -14,7 +14,7 @@ toy_figures = %w(
 
 toy_figures.each do |f|
   file f => %w(toy/visualize.R) do
-    Rake::Task['toy:visualize'].invoke
+    Rake::Task['toy:png'].invoke
   end
 end
 
@@ -26,7 +26,7 @@ namespace :toy do
   task :fixed_width_3 => ['toy/fixed_width_3.t7']
 
   desc "Generate plots visualizing toy model"
-  task :visualize do
+  task :png do
     Dir.chdir 'toy' do
       sh "R --vanilla < visualize.R"
       sh "../scripts/png_figures.sh"
@@ -56,15 +56,18 @@ mlp_figures = %w(mlp/model-1_layer.pdf mlp/model-2_layer.pdf mlp/model-1_layer-f
 
 file 'mlp/model-1_layer.pdf' => %w(mlp/grid_predictions-1_layer.csv mlp/plot_predictions.R) do
   Rake::Task['mlp:one_layer:visualize'].invoke
+  Rake::Task['mlp:png'].invoke
 end
 
 file 'mlp/model-1_layer-fail.pdf' =>
     %w(mlp/grid_predictions-1_layer-fail.csv mlp/plot_predictions.R) do
   Rake::Task['mlp:one_layer_fail:visualize'].invoke
+  Rake::Task['mlp:png'].invoke
 end
 
 file 'mlp/model-2_layer.pdf' => %w(mlp/grid_predictions-2_layer.csv mlp/plot_predictions.R) do
   Rake::Task['mlp:two_layer:visualize'].invoke
+  Rake::Task['mlp:png'].invoke
 end
 
 namespace :mlp do
@@ -115,6 +118,12 @@ namespace :mlp do
       Dir.chdir "mlp" do
         sh "R --vanilla --args grid_predictions-2_layer.csv model-2_layer.pdf < plot_predictions.R"
       end
+    end
+  end
+
+  task :png do
+    Dir.chdir 'mlp' do
+      sh "../scripts/png_figures.sh"
     end
   end
 end
