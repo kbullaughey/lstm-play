@@ -157,6 +157,13 @@
 }
 
 
+.full-width-image {
+  img {
+    width: 100%;
+    height: auto;
+  }
+}
+
 .standard-image {
   margin: 0 auto;
   width: 350px;
@@ -241,4 +248,8 @@
             font-size: 18px;
         }
     }
+}
+
+.next-page {
+  font-size: 1.5em;
 }
