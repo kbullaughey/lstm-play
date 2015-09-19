@@ -5,11 +5,18 @@ longTitle: Recurrent neural network
 permalink: /rnn/
 ---
 
+A major limitation of the feed-forward MLP architecture is that all examples must have the same width. This limitation can be overcome using various recurrent architectures. 
+
+In this example, we'll build a single-layer recursive neural net. We'll reuse the simulated toy data that we trained the MLP on, which happen to all have the same width, but generally recurrent neural nets will be used on sequences of varying lengths. 
+
+### nngraph
+
+We did reasonably well using the stock <code>nn</code> library to build a simple MLP. However, for more complicated architectures, the <code>nngraph</code> package offers an additional layer abstraction that proves quite useful. If you're not familiar with <code>nngraph</code> you may want to see [my brief introduction]({% post_url 2015-09-18-introduction-to-nngraph %}).
 
 {% highlight lua %}
 function addUnit(prev_h, x, inputSize, hiddenSize)
   local ns = {}
-  -- Contatenate x and prev_h into one input matrix. x is a Bx1 vector and
+  -- Concatenate x and prev_h into one input matrix. x is a Bx1 vector and
   -- prev_h is a BxH vector where B is batch size and H is hidden size.
   ns.phx = nn.JoinTable(2,2)({prev_h,x})
   -- Feed these through a combined linear map and squash it.
@@ -61,10 +68,11 @@ function buildNetwork(inputSize, hiddenSize, length)
   end
 
   -- These vectors will be the flattened vectors.
-  ns.par, ns.grad_par = mod:getParameters()
+  ns.par, ns.gradPar = mod:getParameters()
   mod.ns = ns
   return mod
 end
+
 {% endhighlight %}
 
 <div class="standard-image">

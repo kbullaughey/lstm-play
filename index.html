@@ -8,6 +8,7 @@ layout: default
 
   <p>We'll first first attack a toy modeling problem using a multi-layer perceptron, pretty much the simplest type of neural net. Then we'll progress to recursive neuran lets (RNN) and finally the long-term short-term memory (LSTM). But to begin, we'll need a toy problem to model.</p>
 
+  <h2>Main tutorial</h2>
   {% assign sorted_pages = site.pages | sort:"name" %}
   <ol class='outline'>
     {% for page in sorted_pages %}
@@ -20,4 +21,11 @@ layout: default
       {% endif %}
     {% endfor %}
   </ol>
+
+  <h2>Other pages</h3>
+  <ul>
+    {% for post in site.posts %}
+      <li><a href="{{ post.url | prepend: site.baseurl }}">{{ post.title }}</a></li>
+    {% endfor %}
+  </ul>
 </div>
