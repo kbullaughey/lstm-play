@@ -1,0 +1,29 @@
+[0mmodel parameter count: 2049[0m	
+[0minitial test err = 32.777570624002[0m	
+[0mcurrent partial error = 1.4063226355846[0m	
+[0mcurrent partial error = 0.7672671101189[0m	
+[0mcurrent partial error = 0.55972029339266[0m	
+[0mcurrent partial error = 0.44811900547741[0m	
+[0m[1] current error = 0.41744771143147[0m	
+[0mcurrent partial error = 0.12910974058525[0m	
+[0mcurrent partial error = 0.11490732779077[0m	
+[0mcurrent partial error = 0.10980414169153[0m	
+[0mcurrent partial error = 0.10417089090192[0m	
+[0m[2] current error = 0.10179086781779[0m	
+[0mcurrent partial error = 0.10901438011537[0m	
+[0mcurrent partial error = 0.097485056685825[0m	
+[0mcurrent partial error = 0.10050150482585[0m	
+[0mcurrent partial error = 0.096973261183648[0m	
+[0m[3] current error = 0.095942951531945[0m	
+[0mcurrent partial error = 0.10969466462232[0m	
+[0mcurrent partial error = 0.093429979903265[0m	
+[0mcurrent partial error = 0.095381281312188[0m	
+[0mcurrent partial error = 0.088909679503789[0m	
+[0m[4] current error = 0.088681931817581[0m	
+[0mcurrent partial error = 0.086320715247316[0m	
+[0mcurrent partial error = 0.082419360204737[0m	
+[0mcurrent partial error = 0.083779565652399[0m	
+[0mcurrent partial error = 0.079917634561211[0m	
+[0m[5] current error = 0.079362114277694[0m	
+[0m# you have reached the maximum number of iterations[0m	
+[0m# training error = 0.079362114277694[0m	

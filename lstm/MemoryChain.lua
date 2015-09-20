@@ -172,7 +172,10 @@ function MemoryChain:updateOutput(tuple)
   local topLayerSize = self.hiddenSizes[topLayer]
   self.output = lstm.Tensor()(self.batchSize, topLayerSize)
   for b=1, self.batchSize do
-    h = self.lstms[topLayer][lengths[b]].output[1]
+    local thisLayer = self.lstms[topLayer]
+    local seqEnd = lengths[b]
+    local thisCell = thisLayer[seqEnd]
+    h = thisCell.output[1]
     self.output[b]:copy(h[b])
   end
   return self.output

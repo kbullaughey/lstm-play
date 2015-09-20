@@ -1,6 +1,28 @@
-file 'toy/fixed_width_3.t7' => %w(toy/fixed_width_3.sh toy/fixed_width_3.lua toy/toy.lua) do
-  Dir.chdir 'toy' do
-    sh "./fixed_width_3.sh"
+simulated_datasets = {
+  'fixed_width_3' => {
+    'script' => 'toy/fixed_width_3.lua',
+  },
+  'variable_width_2-4' => {
+    'script' => 'toy/variable_width_2-4.lua',
+  },
+  'variable_width_2-4-200k' => {
+    'script' => 'toy/variable_width_2-4.lua',
+  },
+  'variable_width_2-4-reversed' => {
+    'script' => 'toy/variable_width_2-4-reversed.lua',
+  },
+}
+
+simulated_dataset_outputs = []
+simulated_datasets.each do |label,info|
+  output = "toy/#{label}.t7"
+  simulated_dataset_outputs.push output
+  bash_script = "toy/#{label}.sh"
+  lua_script = info['script']
+  file output => [bash_script, lua_script, 'toy/toy.lua'] do
+    Dir.chdir 'toy' do
+      sh "../#{bash_script}"
+    end
   end
 end
 
@@ -18,14 +40,16 @@ toy_figures.each do |f|
   end
 end
 
-simulated_datasets = %w(toy/fixed_width_3.t7)
 trained_models = %w(mlp/trained_model-1_layer.t7)
 
 task :toy => toy_figures
 
 namespace :toy do
-  desc "Simulate width 3 fixed-width examples"
-  task :fixed_width_3 => ['toy/fixed_width_3.t7']
+  simulated_datasets.each do |label,info|
+    t7 = "toy/#{label}.t7"
+    desc "Simulate #{label} dataset"
+    task label => [t7]
+  end
 
   desc "Generate plots visualizing toy model"
   task :png do
@@ -165,16 +189,64 @@ namespace :rnn do
     end
   end
 
-  task :png do
+  task :png => rnn_figures do
     Dir.chdir 'rnn' do
       sh "../scripts/png_figures.sh"
     end
   end
 end
 
-task :rnn => rnn_figures + ['rnn:png']
+task :rnn => ['rnn:png']
 
-namespace :lstm do
+lstm_variations = {
+  "1_layer" => {
+    "data" => "fixed_width_3",
+    "script" => "lstm/model-1_layer.lua",
+  },
+}
+
+lstm_figures = lstm_variations.keys.collect{|k| "lstm/model-#{k}.pdf"}
+
+lstm_variations.each do |k,info|
+  training_outputs = ["lstm/trained_model-#{k}.t7", "lstm/grid_predictions-#{k}.csv"]
+  training_outputs.each do |f|
+    file f => ["lstm/model-#{k}.sh", info['script'], "toy/#{info['data']}.t7"] do
+      Rake::Task["lstm:#{k}:train"].invoke
+    end
+  end
+
+  file "lstm/model-#{k}.pdf" => ["lstm/grid_predictions-#{k}.csv", "toy/plot_predictions.R"] do
+    Dir.chdir "lstm" do
+      pred_file = "grid_predictions-#{k}.csv"
+      sh "R --vanilla --args #{pred_file} model-#{k}.pdf < ../toy/plot_predictions.R"
+    end
+    Rake::Task['lstm:png'].invoke
+  end
 end
 
-task :default => ['toy'] + simulated_datasets + trained_models + ['mlp', 'rnn']
+namespace :lstm do
+  lstm_variations.each do |k,info|
+    namespace k do
+      desc "Train the model"
+      task :train do
+        Dir.chdir "lstm" do
+          sh "./model-#{k}.sh"
+        end
+      end
+
+      desc "Visualize how well it did"
+      task :visualize => "lstm/model-#{k}.pdf"
+    end
+  end
+
+  desc "Generate png figures from PDFs"
+  task :png do
+    Dir.chdir 'lstm' do
+      sh "../scripts/png_figures.sh"
+    end
+  end
+end
+
+task :lstm => lstm_figures + ['lstm:png']
+
+task :default => ['toy'] + simulated_dataset_outputs + trained_models + ['mlp', 'rnn']
