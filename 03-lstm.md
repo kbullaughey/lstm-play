@@ -129,4 +129,4 @@ The performance looks very good:
   <img src="{{"/assets/lstm/model-1_layer-1.png" | prepend: site.baseurl }}">
 </div>
 
-
+One observation of the LSTM relative to the RNN is that the LSTM converges nearly 2x as fast, despite all the additional parameters.
