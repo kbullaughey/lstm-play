@@ -54,7 +54,7 @@ th> seq:backward(2,3)
 While that didn't seem any easier, the compositional nature starts to pay off once the architecture gets more involved.
 
 {% highlight lua %}
-ni = 2; nh = 4; len = 5
+ni = 2; nh = 4; no = 1; len = 5
 h0 = nn.Identity()()
 x = nn.Identity()()
 xs = nn.SplitTable(2)(x)
@@ -62,10 +62,11 @@ h = h0
 for i=1,len do
   h = nn.Tanh()(nn.Linear(ni+nh,nh)(nn.JoinTable(1)({h,nn.SelectTable(1)(xs)})))
 end
-rnn = nn.gModule({h0,x},{h})
+y = nn.Linear(nh,no)(h)
+rnn = nn.gModule({h0,x},{y})
 {% endhighlight %}
 
-This builds a single-layer RNN with 5 timesteps input dimension <code>ni</code> and hidden state size <code>nh</code>. For more details on RNNs and a detailed walkthough on what this sort of code does, have a look at the [RNN]({{ "/rnn/" | prepend: site.baseurl }}) part of the tutorial.
+This builds a single-layer RNN with 5 timesteps input dimension <code>ni</code>, hidden state size <code>nh</code>, and output dimensionality <code>no</code>. For more details on RNNs and a detailed walkthough on what this sort of code does, have a look at the [RNN]({{ "/rnn/" | prepend: site.baseurl }}) part of the tutorial.
 
 The code to build this without <code>nngraph</code> would have been much more complicated.
 
