@@ -5,14 +5,14 @@ longTitle: Multi-layer perceptron
 permalink: /mlp/
 ---
 
-### Introduction to nerual nets with torch
+### Introduction to neural nets with torch
 
 Torch includes a very elegant collection of abstractions for building neural networks of various topologies ([torch/nn](https://github.com/torch/nn)). Because the components have a relatively uniform interface and fit together in standard ways, it straightforward to make all sorts of network topologies that
 <em>Just Work&trade;</em>.
 
-Each component compartentalizes the details of how outputs are computed from inputs and how to back-propagate error signals. Thus when using pre-built components one merely needs to connect them together and all the details of forward and backward propagation are handled automatically and (usually) without error. In my experience I rarely have trouble with my gradients not being correct given the topology, my errors are usually in specifying the incorrect topology (or other issues like whether parameter sharing is set up properly, etc.).
+Each component compartmentalizes the details of how outputs are computed from inputs and how to back-propagate error signals. Thus when using pre-built components one merely needs to connect them together and all the details of forward and backward propagation are handled automatically and (usually) without error. In my experience I rarely have trouble with my gradients not being correct given the topology, my errors are usually in specifying the incorrect topology (or other issues like whether parameter sharing is set up properly, etc.).
 
-> The <span class='fw'>nn</span> modules are more than neural net components, they are powerful, general purpose tools for computing with matricies and tables of matricies.
+> The <span class='fw'>nn</span> modules are more than neural net components, they are powerful, general purpose tools for computing with matrices and tables of matrices.
 
 Here's a sampling computations for which there are <span class='fw'>nn</span> modules:
 
@@ -28,7 +28,7 @@ Here's a sampling computations for which there are <span class='fw'>nn</span> mo
 0. element-wise addition, subtraction, multiplication, division of tensors in a table
 0. convolution of all sorts
 
-I will use the module for doing a linear map as an example. I will use a context (computer graphics) to illustrate that these modules can be used for general purpose computation, not just nerual nets.
+I will use the module for doing a linear map as an example. I will use a context (computer graphics) to illustrate that these modules can be used for general purpose computation, not just neural nets.
 
 Here's a matrix that represents clockwise rotation by 90&deg; and a point at coordinates (2,0):
 
@@ -45,7 +45,7 @@ th> x = torch.Tensor{2,0,1}
 [torch.DoubleTensor of size 3]
 </pre>
 
-We can then declare a linear map nn module, copy in the parameters for our linear map (setting the bais to zero):
+We can then declare a linear map nn module, copy in the parameters for our linear map (setting the bias to zero):
 
 {% highlight lua %}
 m = nn.Linear(3,3)
