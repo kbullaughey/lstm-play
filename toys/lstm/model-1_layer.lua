@@ -85,29 +85,35 @@ end
 
 function addUnit(prev_h, prev_c, x, inputSize, hiddenSize)
   local ns = {}
+  -- Input gate. Equation (7)
   ns.i_gate = nn.Sigmoid()(nn.CAddTable()({
     Linear(inputSize,hiddenSize)(x),
     Linear(hiddenSize,hiddenSize)(prev_h),
     Linear(hiddenSize,hiddenSize)(prev_c)
   }))
+  -- Forget gate. Equation (8)
   ns.f_gate = nn.Sigmoid()(nn.CAddTable()({
     Linear(inputSize,hiddenSize)(x),
     Linear(hiddenSize,hiddenSize)(prev_h),
     Linear(hiddenSize,hiddenSize)(prev_c)
   }))
+  -- New contribution to c. Right term in equation (9)
   ns.learning = nn.Tanh()(nn.CAddTable()({
     Linear(inputSize,hiddenSize)(x),
     Linear(hiddenSize,hiddenSize)(prev_h)
   }))
+  -- Memory cell. Equation (9)
   ns.c = nn.CAddTable()({
     nn.CMulTable()({ns.f_gate, prev_c}),
     nn.CMulTable()({ns.i_gate, ns.learning})
   })
+  -- Output gate. Equation (10)
   ns.o_gate = nn.Sigmoid()(nn.CAddTable()({
     Linear(inputSize,hiddenSize)(x),
     Linear(hiddenSize,hiddenSize)(prev_h),
     Linear(hiddenSize,hiddenSize)(ns.c)
   }))
+  -- Updated hidden state. Equation (11)
   ns.h = nn.CMulTable()({ns.o_gate, ns.c})
   return ns
 end
@@ -121,7 +127,7 @@ function buildNetwork(inputSize, hiddenSize, length)
   -- Reset our cache of linear maps.
   LinearMaps = {}
 
-  -- This will be the initial h (probably set to zeros)
+  -- This will be the initial h and c (probably set to zeros)
   ns.initial_h = nn.Identity()()
   ns.initial_c = nn.Identity()()
 
