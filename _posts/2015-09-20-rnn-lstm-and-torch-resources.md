@@ -13,6 +13,7 @@ Here's a very partial list of resources that might come in handy.
 0. [Documentation for nn](https://github.com/torch/nn/blob/master/doc/overview.md).
 0. [nngraph library](https://github.com/torch/nngraph).
 0. [Penlight](http://stevedonovan.github.io/Penlight/api/manual/01-introduction.md.html), a python-inspired library for Lua.
+0. [cutorch](https://github.com/torch/cutorch) documentation for using GPUs with Torch.
 
 #### Recurrent neural nets, including LSTMs
 
