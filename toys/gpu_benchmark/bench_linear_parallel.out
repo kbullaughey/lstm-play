@@ -1,0 +1,180 @@
+[0m# M,maps,reps,mode[0m	
+[0m100,1,10000,gpu[0m	
+# setting up.	
+# running.	
+1.5088500976562	
+# done.	
+[0m# M,maps,reps,mode[0m	
+[0m100,1,10000,cpu[0m	
+[0m# setting up.[0m	
+[0m# running.[0m	
+[0;36m0.85421204566956[0m	
+[0m# done.[0m	
+[0m# M,maps,reps,mode[0m	
+[0m100,10,10000,gpu[0m	
+# setting up.	
+# running.	
+1.4510259628296	
+# done.	
+[0m# M,maps,reps,mode[0m	
+[0m100,10,10000,cpu[0m	
+[0m# setting up.[0m	
+[0m# running.[0m	
+[0;36m0.8836669921875[0m	
+[0m# done.[0m	
+[0m# M,maps,reps,mode[0m	
+[0m100,100,10000,gpu[0m	
+# setting up.	
+# running.	
+1.469202041626	
+# done.	
+[0m# M,maps,reps,mode[0m	
+[0m100,100,10000,cpu[0m	
+[0m# setting up.[0m	
+[0m# running.[0m	
+[0;36m0.89951682090759[0m	
+[0m# done.[0m	
+[0m# M,maps,reps,mode[0m	
+[0m200,1,10000,gpu[0m	
+# setting up.	
+# running.	
+1.5276861190796	
+# done.	
+[0m# M,maps,reps,mode[0m	
+[0m200,1,10000,cpu[0m	
+[0m# setting up.[0m	
+[0m# running.[0m	
+[0;36m1.9657320976257[0m	
+[0m# done.[0m	
+[0m# M,maps,reps,mode[0m	
+[0m200,10,10000,gpu[0m	
+# setting up.	
+# running.	
+1.4000091552734	
+# done.	
+[0m# M,maps,reps,mode[0m	
+[0m200,10,10000,cpu[0m	
+[0m# setting up.[0m	
+[0m# running.[0m	
+[0;36m1.9941961765289[0m	
+[0m# done.[0m	
+[0m# M,maps,reps,mode[0m	
+[0m200,100,10000,gpu[0m	
+# setting up.	
+# running.	
+1.4074800014496	
+# done.	
+[0m# M,maps,reps,mode[0m	
+[0m200,100,10000,cpu[0m	
+[0m# setting up.[0m	
+[0m# running.[0m	
+[0;36m2.1852219104767[0m	
+[0m# done.[0m	
+[0m# M,maps,reps,mode[0m	
+[0m400,1,10000,gpu[0m	
+# setting up.	
+# running.	
+2.2938630580902	
+# done.	
+[0m# M,maps,reps,mode[0m	
+[0m400,1,10000,cpu[0m	
+[0m# setting up.[0m	
+[0m# running.[0m	
+[0;36m6.1582140922546[0m	
+[0m# done.[0m	
+[0m# M,maps,reps,mode[0m	
+[0m400,10,10000,gpu[0m	
+# setting up.	
+# running.	
+2.0085320472717	
+# done.	
+[0m# M,maps,reps,mode[0m	
+[0m400,10,10000,cpu[0m	
+[0m# setting up.[0m	
+[0m# running.[0m	
+[0;36m6.2397661209106[0m	
+[0m# done.[0m	
+[0m# M,maps,reps,mode[0m	
+[0m400,100,10000,gpu[0m	
+# setting up.	
+# running.	
+1.9828550815582	
+# done.	
+[0m# M,maps,reps,mode[0m	
+[0m400,100,10000,cpu[0m	
+[0m# setting up.[0m	
+[0m# running.[0m	
+[0;36m6.9089760780334[0m	
+[0m# done.[0m	
+[0m# M,maps,reps,mode[0m	
+[0m800,1,10000,gpu[0m	
+# setting up.	
+# running.	
+5.8070299625397	
+# done.	
+[0m# M,maps,reps,mode[0m	
+[0m800,1,10000,cpu[0m	
+[0m# setting up.[0m	
+[0m# running.[0m	
+[0;36m20.641510009766[0m	
+[0m# done.[0m	
+[0m# M,maps,reps,mode[0m	
+[0m800,10,10000,gpu[0m	
+# setting up.	
+# running.	
+5.5428140163422	
+# done.	
+[0m# M,maps,reps,mode[0m	
+[0m800,10,10000,cpu[0m	
+[0m# setting up.[0m	
+[0m# running.[0m	
+[0;36m23.32148194313[0m	
+[0m# done.[0m	
+[0m# M,maps,reps,mode[0m	
+[0m800,100,10000,gpu[0m	
+# setting up.	
+# running.	
+5.4758651256561	
+# done.	
+[0m# M,maps,reps,mode[0m	
+[0m800,100,10000,cpu[0m	
+[0m# setting up.[0m	
+[0m# running.[0m	
+[0;36m23.164724826813[0m	
+[0m# done.[0m	
+[0m# M,maps,reps,mode[0m	
+[0m1600,1,10000,gpu[0m	
+# setting up.	
+# running.	
+13.409183979034	
+# done.	
+[0m# M,maps,reps,mode[0m	
+[0m1600,1,10000,cpu[0m	
+[0m# setting up.[0m	
+[0m# running.[0m	
+[0;36m72.977571964264[0m	
+[0m# done.[0m	
+[0m# M,maps,reps,mode[0m	
+[0m1600,10,10000,gpu[0m	
+# setting up.	
+# running.	
+13.301734924316	
+# done.	
+[0m# M,maps,reps,mode[0m	
+[0m1600,10,10000,cpu[0m	
+[0m# setting up.[0m	
+[0m# running.[0m	
+[0;36m78.988665819168[0m	
+[0m# done.[0m	
+[0m# M,maps,reps,mode[0m	
+[0m1600,100,10000,gpu[0m	
+# setting up.	
+# running.	
+13.270648002625	
+# done.	
+[0m# M,maps,reps,mode[0m	
+[0m1600,100,10000,cpu[0m	
+[0m# setting up.[0m	
+[0m# running.[0m	
+[0;36m78.948502063751[0m	
+[0m# done.[0m	
