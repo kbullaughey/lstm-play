@@ -1,10 +1,41 @@
+#!/usr/bin/env th
+
+socket = require 'socket'
+
 -- enable profiling
 --jitp = require('jit.p')
 --jitp.start("Fl1i1")
 
 torch.setdefaulttensortype('torch.FloatTensor')
 
-use_cuda = true
+cmd = torch.CmdLine()
+cmd:text()
+cmd:text('Benchmarking using a GPU')
+cmd:text()
+cmd:text('Options')
+cmd:option('-seed',os.time(),'initial random seed (defaults to current time)')
+cmd:option('-M',1000,'Linear map will be MxM')
+cmd:option('-gpu',false,'uses GPU when flag present')
+cmd:option('-reps',10000,'replicates')
+cmd:option('-maps',10,'Number of linear maps per synchronization')
+cmd:text()
+
+-- parse input params
+params = cmd:parse(arg)
+
+use_cuda = params.gpu
+local M = params.M
+local K = params.maps
+local reps = params.reps
+
+print("# M,maps,reps,mode")
+local gpuString
+if params.gpu then
+  gpuString = 'gpu'
+else
+  gpuString = 'cpu'
+end
+print(params.M .. ',' .. params.maps .. ',' .. params.reps .. ',' .. gpuString)
 
 require 'nn'
 if use_cuda then
@@ -17,13 +48,11 @@ else
   Tensor = torch.Tensor
 end
 
-local n = 200
 
-
-k = 1000
+print("# setting up.")
 nodes = {}
-for i=1,k do
-  local linearMap = nn.Linear(n,n)
+for i=1,K do
+  local linearMap = nn.Linear(M,M)
   if use_cuda then
     linearMap = linearMap:cuda()
   end
@@ -31,14 +60,14 @@ for i=1,k do
   par:uniform(-1,1)
   nodes[i] = linearMap
 end
-start_time = os.time()
 
+print("# running.")
+start_time = socket.gettime()
 dataset = {}
-m = 100000
-for i=1,m do
-  local x = Tensor(2,n):uniform()
-  local y = Tensor(2,n):uniform()
-  local j = (i-1) % k + 1
+for i=1,reps do
+  local x = Tensor(2,M):uniform()
+  local y = Tensor(2,M):uniform()
+  local j = (i-1) % K + 1
   if j == 1 and use_cuda then
     cutorch.synchronize()
   end
@@ -47,7 +76,8 @@ for i=1,m do
   map:forward(x)
   map:backward(x,y)
 end
-print(os.time() - start_time)
+print(socket.gettime() - start_time)
+print("# done.")
 
 
 --jitp.stop()
