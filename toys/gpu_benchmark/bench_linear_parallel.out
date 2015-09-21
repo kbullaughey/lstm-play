@@ -1,180 +1,150 @@
-[0m# M,maps,reps,mode[0m	
-[0m100,1,10000,gpu[0m	
 # setting up.	
 # running.	
-1.5088500976562	
 # done.	
-[0m# M,maps,reps,mode[0m	
-[0m100,1,10000,cpu[0m	
-[0m# setting up.[0m	
-[0m# running.[0m	
-[0;36m0.85421204566956[0m	
-[0m# done.[0m	
-[0m# M,maps,reps,mode[0m	
-[0m100,10,10000,gpu[0m	
+# M,maps,reps,mode,elapsed_time	
+100,1,10000,gpu,1.5998051166534	
 # setting up.	
 # running.	
-1.4510259628296	
 # done.	
-[0m# M,maps,reps,mode[0m	
-[0m100,10,10000,cpu[0m	
-[0m# setting up.[0m	
-[0m# running.[0m	
-[0;36m0.8836669921875[0m	
-[0m# done.[0m	
-[0m# M,maps,reps,mode[0m	
-[0m100,100,10000,gpu[0m	
+# M,maps,reps,mode,elapsed_time	
+100,1,10000,cpu,0.85565495491028	
 # setting up.	
 # running.	
-1.469202041626	
 # done.	
-[0m# M,maps,reps,mode[0m	
-[0m100,100,10000,cpu[0m	
-[0m# setting up.[0m	
-[0m# running.[0m	
-[0;36m0.89951682090759[0m	
-[0m# done.[0m	
-[0m# M,maps,reps,mode[0m	
-[0m200,1,10000,gpu[0m	
+# M,maps,reps,mode,elapsed_time	
+100,10,10000,gpu,1.4890289306641	
 # setting up.	
 # running.	
-1.5276861190796	
 # done.	
-[0m# M,maps,reps,mode[0m	
-[0m200,1,10000,cpu[0m	
-[0m# setting up.[0m	
-[0m# running.[0m	
-[0;36m1.9657320976257[0m	
-[0m# done.[0m	
-[0m# M,maps,reps,mode[0m	
-[0m200,10,10000,gpu[0m	
+# M,maps,reps,mode,elapsed_time	
+100,10,10000,cpu,0.86617517471313	
 # setting up.	
 # running.	
-1.4000091552734	
 # done.	
-[0m# M,maps,reps,mode[0m	
-[0m200,10,10000,cpu[0m	
-[0m# setting up.[0m	
-[0m# running.[0m	
-[0;36m1.9941961765289[0m	
-[0m# done.[0m	
-[0m# M,maps,reps,mode[0m	
-[0m200,100,10000,gpu[0m	
+# M,maps,reps,mode,elapsed_time	
+100,100,10000,gpu,1.5148248672485	
 # setting up.	
 # running.	
-1.4074800014496	
 # done.	
-[0m# M,maps,reps,mode[0m	
-[0m200,100,10000,cpu[0m	
-[0m# setting up.[0m	
-[0m# running.[0m	
-[0;36m2.1852219104767[0m	
-[0m# done.[0m	
-[0m# M,maps,reps,mode[0m	
-[0m400,1,10000,gpu[0m	
+# M,maps,reps,mode,elapsed_time	
+100,100,10000,cpu,0.9809718132019	
 # setting up.	
 # running.	
-2.2938630580902	
 # done.	
-[0m# M,maps,reps,mode[0m	
-[0m400,1,10000,cpu[0m	
-[0m# setting up.[0m	
-[0m# running.[0m	
-[0;36m6.1582140922546[0m	
-[0m# done.[0m	
-[0m# M,maps,reps,mode[0m	
-[0m400,10,10000,gpu[0m	
+# M,maps,reps,mode,elapsed_time	
+200,1,10000,gpu,1.5953359603882	
 # setting up.	
 # running.	
-2.0085320472717	
 # done.	
-[0m# M,maps,reps,mode[0m	
-[0m400,10,10000,cpu[0m	
-[0m# setting up.[0m	
-[0m# running.[0m	
-[0;36m6.2397661209106[0m	
-[0m# done.[0m	
-[0m# M,maps,reps,mode[0m	
-[0m400,100,10000,gpu[0m	
+# M,maps,reps,mode,elapsed_time	
+200,1,10000,cpu,1.9721598625183	
 # setting up.	
 # running.	
-1.9828550815582	
 # done.	
-[0m# M,maps,reps,mode[0m	
-[0m400,100,10000,cpu[0m	
-[0m# setting up.[0m	
-[0m# running.[0m	
-[0;36m6.9089760780334[0m	
-[0m# done.[0m	
-[0m# M,maps,reps,mode[0m	
-[0m800,1,10000,gpu[0m	
+# M,maps,reps,mode,elapsed_time	
+200,10,10000,gpu,1.4672429561615	
 # setting up.	
 # running.	
-5.8070299625397	
 # done.	
-[0m# M,maps,reps,mode[0m	
-[0m800,1,10000,cpu[0m	
-[0m# setting up.[0m	
-[0m# running.[0m	
-[0;36m20.641510009766[0m	
-[0m# done.[0m	
-[0m# M,maps,reps,mode[0m	
-[0m800,10,10000,gpu[0m	
+# M,maps,reps,mode,elapsed_time	
+200,10,10000,cpu,1.9998559951782	
 # setting up.	
 # running.	
-5.5428140163422	
 # done.	
-[0m# M,maps,reps,mode[0m	
-[0m800,10,10000,cpu[0m	
-[0m# setting up.[0m	
-[0m# running.[0m	
-[0;36m23.32148194313[0m	
-[0m# done.[0m	
-[0m# M,maps,reps,mode[0m	
-[0m800,100,10000,gpu[0m	
+# M,maps,reps,mode,elapsed_time	
+200,100,10000,gpu,1.462975025177	
 # setting up.	
 # running.	
-5.4758651256561	
 # done.	
-[0m# M,maps,reps,mode[0m	
-[0m800,100,10000,cpu[0m	
-[0m# setting up.[0m	
-[0m# running.[0m	
-[0;36m23.164724826813[0m	
-[0m# done.[0m	
-[0m# M,maps,reps,mode[0m	
-[0m1600,1,10000,gpu[0m	
+# M,maps,reps,mode,elapsed_time	
+200,100,10000,cpu,2.224858045578	
 # setting up.	
 # running.	
-13.409183979034	
 # done.	
-[0m# M,maps,reps,mode[0m	
-[0m1600,1,10000,cpu[0m	
-[0m# setting up.[0m	
-[0m# running.[0m	
-[0;36m72.977571964264[0m	
-[0m# done.[0m	
-[0m# M,maps,reps,mode[0m	
-[0m1600,10,10000,gpu[0m	
+# M,maps,reps,mode,elapsed_time	
+400,1,10000,gpu,2.3433411121368	
 # setting up.	
 # running.	
-13.301734924316	
 # done.	
-[0m# M,maps,reps,mode[0m	
-[0m1600,10,10000,cpu[0m	
-[0m# setting up.[0m	
-[0m# running.[0m	
-[0;36m78.988665819168[0m	
-[0m# done.[0m	
-[0m# M,maps,reps,mode[0m	
-[0m1600,100,10000,gpu[0m	
+# M,maps,reps,mode,elapsed_time	
+400,1,10000,cpu,6.23202085495	
 # setting up.	
 # running.	
-13.270648002625	
 # done.	
-[0m# M,maps,reps,mode[0m	
-[0m1600,100,10000,cpu[0m	
-[0m# setting up.[0m	
-[0m# running.[0m	
-[0;36m78.948502063751[0m	
-[0m# done.[0m	
+# M,maps,reps,mode,elapsed_time	
+400,10,10000,gpu,2.046532869339	
+# setting up.	
+# running.	
+# done.	
+# M,maps,reps,mode,elapsed_time	
+400,10,10000,cpu,6.344446182251	
+# setting up.	
+# running.	
+# done.	
+# M,maps,reps,mode,elapsed_time	
+400,100,10000,gpu,2.0142719745636	
+# setting up.	
+# running.	
+# done.	
+# M,maps,reps,mode,elapsed_time	
+400,100,10000,cpu,7.0107789039612	
+# setting up.	
+# running.	
+# done.	
+# M,maps,reps,mode,elapsed_time	
+800,1,10000,gpu,5.8581581115723	
+# setting up.	
+# running.	
+# done.	
+# M,maps,reps,mode,elapsed_time	
+800,1,10000,cpu,21.098970890045	
+# setting up.	
+# running.	
+# done.	
+# M,maps,reps,mode,elapsed_time	
+800,10,10000,gpu,5.5705518722534	
+# setting up.	
+# running.	
+# done.	
+# M,maps,reps,mode,elapsed_time	
+800,10,10000,cpu,23.226301908493	
+# setting up.	
+# running.	
+# done.	
+# M,maps,reps,mode,elapsed_time	
+800,100,10000,gpu,5.5395438671112	
+# setting up.	
+# running.	
+# done.	
+# M,maps,reps,mode,elapsed_time	
+800,100,10000,cpu,23.176234006882	
+# setting up.	
+# running.	
+# done.	
+# M,maps,reps,mode,elapsed_time	
+1600,1,10000,gpu,13.443809986115	
+# setting up.	
+# running.	
+# done.	
+# M,maps,reps,mode,elapsed_time	
+1600,1,10000,cpu,72.224404811859	
+# setting up.	
+# running.	
+# done.	
+# M,maps,reps,mode,elapsed_time	
+1600,10,10000,gpu,13.311569929123	
+# setting up.	
+# running.	
+# done.	
+# M,maps,reps,mode,elapsed_time	
+1600,10,10000,cpu,78.248226881027	
+# setting up.	
+# running.	
+# done.	
+# M,maps,reps,mode,elapsed_time	
+1600,100,10000,gpu,13.30570602417	
+# setting up.	
+# running.	
+# done.	
+# M,maps,reps,mode,elapsed_time	
+1600,100,10000,cpu,78.879751205444	
