@@ -36,7 +36,7 @@ target = torch.rand(n,1):mul(toy.max_target)
 inputs = toy.target_to_inputs(target, params.sd, 4)
 
 -- Sample the lengths 2, 3, 4 at prob 1/3 each.
-lengths = torch.rand(n):mul(3):floor():add(2)
+lengths = torch.rand(n):mul(2):floor():add(3)
 
 -- This method returns a vector containing L ones with the rest zeros.
 local mapRow = function(L)

@@ -203,6 +203,10 @@ lstm_variations = {
     "data" => "fixed_width_3",
     "script" => "lstm/model-1_layer.lua",
   },
+  "1_layer-variable" => {
+    "data" => "variable_width_2-4-200k",
+    "script" => "lstm/model-1_layer-variable.lua",
+  },
 }
 
 lstm_figures = lstm_variations.keys.collect{|k| "lstm/model-#{k}.pdf"}
