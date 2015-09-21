@@ -224,14 +224,20 @@ end
 
 LSTMs have many more parameters than our simple RNN, mainly do to all the additional parameter matrices involved in the input, forget, and output gates, and also because they have both a hidden state and a memory cell. So where our RNN with <code>h=26</code> had 755 parameters, our LSTM with <code>h=16</code> has 2049.
 
-The performance looks very good:
+The performance looks very good.
 
-<div class="standard-image">
-  <img src="{{"/assets/lstm/model-1_layer-variable-1.png" | prepend: site.baseurl }}">
-</div>
+This first plot is using the same fixed-width data set as our RNN example and using [an LSTM implementation](https://github.com/kbullaughey/lstm-play/blob/master/toys/lstm/model-1_layer.lua) that doesn't have the extra units to extract each batch member's terminal hidden state, it can simply used the last hidden state for all batch members because they're all the same length.
 
 <div class="standard-image">
   <img src="{{"/assets/lstm/model-1_layer-1.png" | prepend: site.baseurl }}">
 </div>
 
-One observation of the LSTM relative to the RNN is that the LSTM converges nearly 2x as fast, despite all the additional parameters.
+This LSTM converges nearly 2x as fast as the RNN despite all the additional parameters.
+
+However, after I added my kluge for variable length sequences ([in this script](https://github.com/kbullaughey/lstm-play/blob/master/toys/lstm/model-1_layer-variable.lua)), the convergence was 10x slower and it fit less well:
+
+<div class="standard-image">
+  <img src="{{"/assets/lstm/model-1_layer-variable-1.png" | prepend: site.baseurl }}">
+</div>
+
+I haven't managed to find a bug yet, but this type of behavior (fitting less well and converging slower) is symptomatic of many mistakes that can occur when implementing neural networks. It still mostly works, but not particularly well. This makes it a challenge to know when there are bugs. 
