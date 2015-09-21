@@ -28,26 +28,14 @@ local M = params.M
 local K = params.maps
 local reps = params.reps
 
-print("# M,maps,reps,mode")
-local gpuString
-if params.gpu then
-  gpuString = 'gpu'
-else
-  gpuString = 'cpu'
-end
-print(params.M .. ',' .. params.maps .. ',' .. params.reps .. ',' .. gpuString)
-
 require 'nn'
 if use_cuda then
-  use_cda, cunn = require('fbcunn')
-end
-if use_cuda then
+  cutorch = require 'cutorch'
   deviceParams = cutorch.getDeviceProperties(1)
   Tensor = torch.CudaTensor
 else
   Tensor = torch.Tensor
 end
-
 
 print("# setting up.")
 nodes = {}
@@ -76,8 +64,18 @@ for i=1,reps do
   map:forward(x)
   map:backward(x,y)
 end
-print(socket.gettime() - start_time)
+elapsedTime = socket.gettime() - start_time
 print("# done.")
+print("# M,maps,reps,mode,elapsed_time")
+local gpuString
+if params.gpu then
+  gpuString = 'gpu'
+else
+  gpuString = 'cpu'
+end
+print(params.M .. ',' .. params.maps .. ',' .. params.reps .. ',' ..
+  gpuString .. ',' .. elapsedTime)
+
 
 
 --jitp.stop()
