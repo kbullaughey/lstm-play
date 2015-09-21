@@ -13,10 +13,10 @@ Here I use a weighted average of four arbitrary functions sine waves to come up 
 
 {% highlight lua %}
 f = function(x) return (
-    4 * torch.sin(x + 1) +
-    1 * torch.sin(x*2 + 1) +
-    2 * torch.sin(x*4) +
-    3 * torch.sin(x/2))
+  torch.sin(x/2 - 1):mul(0.5) +
+  torch.sin(x) +
+  torch.sin(x*2 + 2) +
+  torch.sin(x/4 + 1) + 2)
 end
 {% endhighlight %}
 
