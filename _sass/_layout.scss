@@ -164,6 +164,15 @@
   }
 }
 
+.wide-image {
+  margin: 0 auto;
+  width: 500px;
+  img {
+    width: 100%;
+    height: auto;
+  }
+}
+
 .standard-image {
   margin: 0 auto;
   width: 350px;
