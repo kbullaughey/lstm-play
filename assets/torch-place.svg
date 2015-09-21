@@ -1,0 +1,40 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 303 303" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:1.41421;">
+    <g id="Layer1" transform="matrix(1,0,0,1,-37.7953,-37.7953)">
+        <g transform="matrix(1,0,0,1,16.4837,-2.25228)">
+            <rect x="77.534" y="53.362" width="232.934" height="232.934" style="fill:none;stroke-width:1px;stroke:rgb(77,77,77);"/>
+        </g>
+        <g transform="matrix(-1.60812e-16,-1,1,-1.60812e-16,-245.753,408.574)">
+            <text x="153.452px" y="307.852px" style="font-family:Arial;font-size:16px;fill:rgb(77,77,77);">Barrier to  customization</text>
+        </g>
+        <g transform="matrix(1,0,0,1,16.4837,-2.25228)">
+            <g transform="matrix(1,0,0,1,-2.27156,10.2511)">
+                <text x="282.489px" y="290.052px" style="font-family:Arial;font-size:16px;fill:rgb(77,77,77);">high</text>
+            </g>
+            <g transform="matrix(1,0,0,1,-2.99856,6.47667)">
+                <text x="80.533px" y="293.826px" style="font-family:Arial;font-size:16px;fill:rgb(77,77,77);">low</text>
+            </g>
+        </g>
+        <g transform="matrix(-1.60812e-16,-1,1,-1.60812e-16,-211.978,361.578)">
+            <g transform="matrix(1,0,0,1,-2.27156,10.2511)">
+                <text x="282.489px" y="290.052px" style="font-family:Arial;font-size:16px;fill:rgb(77,77,77);">high</text>
+            </g>
+            <g transform="matrix(1,0,0,1,-2.99856,6.47667)">
+                <text x="80.533px" y="293.826px" style="font-family:Arial;font-size:16px;fill:rgb(77,77,77);">low</text>
+            </g>
+        </g>
+        <g transform="matrix(1,-4.44089e-16,4.44089e-16,1,121.74,161.529)">
+            <text x="27.399px" y="149.766px" style="font-family:Arial;font-size:16px;fill:rgb(77,77,77);">stock capabilities</text>
+        </g>
+        <g transform="matrix(1,0,0,1,109.784,103.958)">
+            <circle cx="154.381" cy="132.826" r="5.959" style="fill:rgb(81,146,216);stroke-width:1px;stroke:rgb(47,62,160);"/>
+        </g>
+        <g transform="matrix(1,-4.44089e-16,4.44089e-16,1,-0.773515,174.314)">
+            <text x="133.195px" y="152.536px" style="font-family:Arial;font-size:12px;fill:rgb(77,77,77);">(additional coding required)</text>
+        </g>
+        <g transform="matrix(1.56394,0,0,1.56394,-87.0237,-118.688)">
+            <text x="214.794px" y="217.674px" style="font-family:Arial;font-size:11.936px;fill:rgb(47,62,160);">torch</text>
+        </g>
+    </g>
+</svg>
