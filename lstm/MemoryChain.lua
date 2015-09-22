@@ -6,13 +6,12 @@ local stringx = require 'pl.stringx'
 --      width of the hidden state for a layer. The number of LSTM layers
 --      is determined from the size of this table. The width of the
 --      memory cell is the same as the hidden state size for each layer.
---  3. outputSize [integer] - Size of output dimension
---  4. batchSize [integer] - The number of examples in a mini-batch. At present
+--  3. batchSize [integer] - The number of examples in a mini-batch. At present
 --      this implementation only works with mini-batches.
---  5. maxLength [integer] - The length of the longest sequence we should
+--  4. maxLength [integer] - The length of the longest sequence we should
 --      expect to see. This is necessary because we pre-create all the
 --      memory cells and use the same ones for all sequences.
-local MemoryChain = function(inputSize, hiddenSizes, outputSize, batchSize, maxLength)
+local MemoryChain = function(inputSize, hiddenSizes, batchSize, maxLength)
   print("MemoryChain(" .. inputSize .. ',<' .. stringx.join(',',hiddenSizes) ..
     '>,' .. batchSize .. "," .. maxLength .. ')')
 
@@ -23,7 +22,7 @@ local MemoryChain = function(inputSize, hiddenSizes, outputSize, batchSize, maxL
 
   -- Keep a namespace.
   local ns = {inputSize=inputSize, hiddenSize=hiddenSize, maxLength=maxLength,
-    batchSize=batchSize, outputSize=outputSize}
+    batchSize=batchSize}
 
   -- This will be the initial h (probably set to zeros)
   ns.initial_h = nn.Identity()()
@@ -68,9 +67,7 @@ local MemoryChain = function(inputSize, hiddenSizes, outputSize, batchSize, maxL
   -- the terminal vectors for each sequence activated. We can then sum over
   -- the sequence to telescope the matrix, eliminating the L dimension. We
   -- feed this through a linear map to produce the predictions.
-  ns.outSelectedMod = nn.Sum(2)
-  ns.outSelected = ns.outSelectedMod(nn.CMulTable()({ns.out, ns.lenInd}))
-  ns.y = nn.Linear(hiddenSize, outputSize)(ns.outSelected)
+  ns.y = nn.Sum(2)((nn.CMulTable()({ns.out, ns.lenInd})))
 
   -- Combine into a single graph
   local mod = nn.gModule({ns.initial_h, ns.initial_c, ns.inputs, ns.lengthIndicators},{ns.y})
@@ -97,8 +94,6 @@ local MemoryChain = function(inputSize, hiddenSizes, outputSize, batchSize, maxL
     end
   end
 
-  -- These vectors will be the flattened vectors.
-  ns.par, ns.gradPar = mod:getParameters()
   mod.ns = ns
   return mod
 end
