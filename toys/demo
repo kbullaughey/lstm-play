@@ -1,0 +1,20 @@
+Why Torch is a nice choice
+ - figure
+ - lua underneath, torch on top
+ - tensor demo, in place operations, chaining
+ - nn as general purpose computation
+ - can implement neural nets tersely (rnn code snipit)
+Torch and GPU
+ - figure
+ - gpu code
+ - gpu demo
+Toy model
+ - MLP
+ - RNN
+ - LSTM
+Tips
+ - checking gradients
+ - compare implementations
+
+Checking gradients:
+th model-1_layer-variable.lua -hidden 5 -mode check

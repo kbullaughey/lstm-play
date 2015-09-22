@@ -55,15 +55,6 @@ x_test = x:narrow(1, train_n+1, test_n)
 y_test = y:narrow(1, train_n+1, test_n)
 lengths_test = lengths:narrow(1, train_n+1, test_n)
 
--- Normalize the training inputs
-norm_mean = x_train:mean()
-norm_std = x_train:std()
-x_train_n = (x_train - norm_mean) / norm_std
-
--- Normalize the test inputs according to the training data normalization
--- parameters.
-x_test_n = (x_test - norm_mean) / norm_std
-
 -- This method returns a vector containing L ones with the rest zeros.
 local mapRow = function(L)
   v = torch.zeros(4)
@@ -72,10 +63,21 @@ local mapRow = function(L)
 end
 -- We use mapRow to make a mask matrix so we can zero out inputs that
 -- are not really part of each example.
-mask = nn.JoinTable(1):forward(tablex.map(mapRow, lengths_train:totable()))
-x_train_n:cmul(mask)
-mask = nn.JoinTable(1):forward(tablex.map(mapRow, lengths_test:totable()))
-x_test_n:cmul(mask)
+mask_train = nn.JoinTable(1):forward(tablex.map(mapRow, lengths_train:totable()))
+mask_test = nn.JoinTable(1):forward(tablex.map(mapRow, lengths_test:totable()))
+
+-- Normalize the training inputs
+numCells = mask_train:sum()
+norm_mean = x_train:sum() / numCells
+norm_std = math.sqrt((x_train - norm_mean):cmul(mask_train):pow(2):sum() / numCells)
+x_train_n = (x_train - norm_mean) / norm_std
+
+-- Normalize the test inputs according to the training data normalization
+-- parameters.
+x_test_n = (x_test - norm_mean) / norm_std
+
+x_train_n:cmul(mask_train)
+x_test_n:cmul(mask_test)
 
 function makeDataset(x, y, lengths, hiddenSize, batchSize, maxLength)
   dataset={batchSize=batchSize};
@@ -261,7 +263,7 @@ function lstmTrainer(module, criterion)
         module:backward(input, criterion.gradInput)
 
         currentError = currentError + criterion.output
-        module:updateParameters(self.learningRate)
+        par:add(gradPar:mul(-self.learningRate))
         batches = batches + 1
         if t % 1000 == 0 then
           print ("current partial error = " .. currentError / batches)

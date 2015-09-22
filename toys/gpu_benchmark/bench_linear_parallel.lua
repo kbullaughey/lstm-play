@@ -51,7 +51,6 @@ end
 
 print("# running.")
 start_time = socket.gettime()
-dataset = {}
 for i=1,reps do
   local x = Tensor(2,M):uniform()
   local y = Tensor(2,M):uniform()
