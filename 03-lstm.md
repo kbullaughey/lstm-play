@@ -234,10 +234,9 @@ This first plot is using the same fixed-width data set as our RNN example and us
 
 This LSTM converges nearly 2x as fast as the RNN despite all the additional parameters.
 
-However, after I added my kluge for variable length sequences ([in this script](https://github.com/kbullaughey/lstm-play/blob/master/toys/lstm/model-1_layer-variable.lua)), the convergence was 10x slower and it fit less well:
+After adding our kluge for variable length sequences ([in this script](https://github.com/kbullaughey/lstm-play/blob/master/toys/lstm/model-1_layer-variable.lua)), we get similar results:
 
 <div class="standard-image">
   <img src="{{"/assets/lstm/model-1_layer-variable-1.png" | prepend: site.baseurl }}">
 </div>
 
-I haven't managed to find a bug yet, but this type of behavior (fitting less well and converging slower) is symptomatic of many mistakes that can occur when implementing neural networks. It still mostly works, but not particularly well. This makes it a challenge to know when there are bugs. 
