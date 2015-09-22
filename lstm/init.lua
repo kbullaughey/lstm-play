@@ -3,9 +3,7 @@ require 'torch'
 lstm = {}
 
 lstm.MemoryCell = require 'lstm.MemoryCell'
-require 'lstm.MemoryChain'
-require 'lstm.SelectTerminal'
-require 'lstm.BasicNet'
+lstm.MemoryChain = require 'lstm.MemoryChain'
 
 lstm.ping = function()
   return "pong"

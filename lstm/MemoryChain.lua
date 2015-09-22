@@ -1,278 +1,106 @@
 local stringx = require 'pl.stringx'
-local MemoryChain, parent = torch.class('lstm.MemoryChain', 'nn.Module')
 
--- Constructor. It takes three parameters:
+-- Constructor. It takes four parameters:
 --  1. inputSize [integer] - width of input vector
 --  2. hiddenSizes [table of integers] - each entry in the table gives the
 --      width of the hidden state for a layer. The number of LSTM layers
 --      is determined from the size of this table. The width of the
 --      memory cell is the same as the hidden state size for each layer.
---  3. maxLength [integer] - The length of the longest sequence we should
+--  3. outputSize [integer] - Size of output dimension
+--  4. batchSize [integer] - The number of examples in a mini-batch. At present
+--      this implementation only works with mini-batches.
+--  5. maxLength [integer] - The length of the longest sequence we should
 --      expect to see. This is necessary because we pre-create all the
 --      memory cells and use the same ones for all sequences.
-function MemoryChain:__init(inputSize, hiddenSizes, maxLength)
+local MemoryChain = function(inputSize, hiddenSizes, outputSize, batchSize, maxLength)
   print("MemoryChain(" .. inputSize .. ',<' .. stringx.join(',',hiddenSizes) ..
-    '>,' .. maxLength .. ')')
-  parent.__init(self)
-  self.inputSize = inputSize
+    '>,' .. batchSize .. "," .. maxLength .. ')')
 
-  self.numLayers = #hiddenSizes
-  self.hiddenSizes = hiddenSizes
-  -- For convenience, store the inputSize as if it's the 0'th hidden layer
-  self.hiddenSizes[0] = inputSize
+  if #hiddenSizes ~= 1 then
+    error("current implementation only works with one layer")
+  end
+  local hiddenSize = hiddenSizes[1]
 
-  self.maxLength = maxLength
-  self.gradInput = nil
-  -- Later we will cache the batch size and length of the input during the
-  -- forward so we don't bother recomputing these during the backward pass.
-  self.batchSize = nil
-  self.len = nil
+  -- Keep a namespace.
+  local ns = {inputSize=inputSize, hiddenSize=hiddenSize, maxLength=maxLength,
+    batchSize=batchSize, outputSize=outputSize}
 
-  -- We will use the memory associated with the first cell in each layer as the
-  -- storage for shared parameters, but we can't share them until later, after
-  -- the whole network is created because getParameters will point the tensors
-  -- to new storage.
+  -- This will be the initial h (probably set to zeros)
+  ns.initial_h = nn.Identity()()
+  ns.initial_c = nn.Identity()()
+
+  -- The length indicators is a one-hot representation of where each sequence
+  -- ends. It is a BxL matrix with exactly one 1 in each row.
+  ns.lengthIndicators = nn.Identity()()
+
+  -- This will be expecting a matrix of size BxLxI where B is the batch size,
+  -- L is the sequence length, and I is the number of inputs.
+  ns.inputs = nn.Identity()()
+  ns.splitInputs = nn.SplitTable(2)(ns.inputs)
+
+  -- We Save all the hidden states in this table for use in prediction.
+  ns.hiddenStates = {}
+  ns.linearMaps = {}
+
+  -- Iterate over the anticipated sequence length, creating a unit for each
+  -- timestep.
+  local unit = {h=ns.initial_h, c=ns.initial_c}
+  for t=1,maxLength do
+    local x = nn.SelectTable(t)(ns.splitInputs)
+    unit, ns.linearMaps[t] = lstm.MemoryCell(unit.h, unit.c, x, inputSize, hiddenSize)
+
+    -- Add a middle dimension to prepare the hidden states it to get joined
+    -- along the time steps as the middle dimension.
+    ns.hiddenStates[t] = nn.Reshape(batchSize, 1, hiddenSize)(unit.h)
+  end
+
+  -- Paste all the hidden matricies together. Each one is BxH and the result
+  -- will be BxLxH
+  ns.out = nn.JoinTable(2)(ns.hiddenStates)
+
+  -- The length indicators have shape BxL and we replicate it for each hidden
+  -- dimension, resulting in BxLxH.
+  ns.lenInd = nn.Replicate(hiddenSize,3)(ns.lengthIndicators)
+
+  -- Output layer
   --
-  -- Here I create tables that will store the shared parameters, one for
-  -- forward parameters and one for the accumulating gradient estimates.
-  self.lstmParams = {}
-  self.lstmGradParams = {}
+  -- We then use the lenInd matrix to mask the output matrix, leaving only 
+  -- the terminal vectors for each sequence activated. We can then sum over
+  -- the sequence to telescope the matrix, eliminating the L dimension. We
+  -- feed this through a linear map to produce the predictions.
+  ns.outSelectedMod = nn.Sum(2)
+  ns.outSelected = ns.outSelectedMod(nn.CMulTable()({ns.out, ns.lenInd}))
+  ns.y = nn.Linear(hiddenSize, outputSize)(ns.outSelected)
 
-  print("Creating MemoryChain")
-  self.lstms = {}
-  local prevLayerSize = self.inputSize
-  for l=1,self.numLayers do
-    local thisLayerSize = self.hiddenSizes[l]
-    self.lstms[l] = {}
+  -- Combine into a single graph
+  local mod = nn.gModule({ns.initial_h, ns.initial_c, ns.inputs, ns.lengthIndicators},{ns.y})
 
-    -- Make enough lstm cells for the longest sequence
-    for t=1,maxLength do
-      self.lstms[l][t] = lstm.MemoryCell(prevLayerSize, thisLayerSize)
+  -- Set up parameter sharing among respective learn maps of each unit. 
+  local referenceMaps = ns.linearMaps[1]
+  local linearMapsPerMemoryCell = #referenceMaps
+  for t=2,maxLength do
+    if #ns.linearMaps[t] ~= linearMapsPerMemoryCell then
+      error("unexpected number of linear maps: " .. #ns.linearMaps[t])
     end
-
-    -- Capture the parameters of the first cell in this layer, as these will
-    -- be shared across the layer.
-    self.lstmParams[l], self.lstmGradParams[l] = self.lstms[l][1]:parameters()
-
-    -- The output of one layer is the input to the next.
-    prevLayerSize = thisLayerSize
-  end
-end
-
--- Return the shared parameters. This function returns two tables, one for
--- forward parameters and one for the accumulating gradient estimates. Each
--- table has an entry for each layer.
-function MemoryChain:parameters()
-  return nn.FlattenTable():forward(self.lstmParams),
-    nn.FlattenTable():forward(self.lstmGradParams)
-end
-
--- Share parameters among all memory cells of each layer. Parameters are not
--- shared between layers.
-function MemoryChain:share()
-  -- The first cell in each layer is the reference parameters. We'll share all
-  -- subsequent cells in the layer back with this first one.
-  for l=1,self.numLayers do
-
-    -- Get the shared parameters for this layer.
-    local sharedParams = self.lstmParams[l]
-    local sharedGradParams = self.lstmGradParams[l]
-
-    for t=2,self.maxLength do
-      -- Get the parameters for the memory cell in layer l at timestep t. This
-      -- will be a table containing the parameters for each unit in the LSTM
-      -- MemoryCell module.
-      local cellParams, cellGradParams = self.lstms[l][t]:parameters()
-
-      -- Iterate over each component's parameters, setting them to use the
-      -- memory of the reference memory cell, which we captured during setup.
-      for i=1, #cellParams do
-        cellParams[i]:set(sharedParams[i])
-        cellGradParams[i]:set(sharedGradParams[i])
+    for i=1,linearMapsPerMemoryCell do
+      local src = referenceMaps[i]
+      local map = ns.linearMaps[t][i]
+      local srcPar, srcGradPar = src:parameters()
+      local mapPar, mapGradPar = map:parameters()
+      if #srcPar ~= #mapPar or #srcGradPar ~= #mapGradPar then
+        error("parameters structured funny, won't share")
       end
-    end
-  end
-end
-
--- Set all parameters to uniform on the interval (-radius, radius)
-function MemoryChain:reset(radius)
-  local par = self:parameters()
-  for l=1, self.numLayers do
-    local layerPar = par[l]
-    -- Iterate over each chunk of parameters (i.e., from each LSTM submodule).
-    for i=1, #layerPar do
-      layerPar[i]:uniform(-radius, radius)
-    end
-  end
-end
-
--- Receives a table containing two Tensors: input and a vector of lengths, as
--- not all sequences will span the full length dimension of the tensor. Input
--- should be a 3D tensor with the first dimension iterating over examples in
--- the batch, the second dimension iterating over timesteps in the sequence,
--- and the last dimension iterating over features.
-function MemoryChain:updateOutput(tuple)
-  local input, lengths = unpack(tuple)
-  if input:dim() ~= 3 then
-    error("expecting a 3D input")
-  end
-  self.batchSize = input:size(1)
-
-  -- Cache the length of the longest sequence in this batch (i.e., the size
-  -- of the middle dimension). This may be less than maxLength, which is
-  -- the longest sequence we will ever see.
-  self.len = input:size(2)
-
-  -- We'll use these tables to store the inputs of each memory cell so we have
-  -- these for the backwards pass.
-  self.hiddenStates = {}
-  self.memories = {}
-  self.inputs = {}
-
-  -- First forward each layer all the way through the sequence before going
-  -- up to the next layer
-  for l=1,self.numLayers do
-    local thisLayerSize = self.hiddenSizes[l]
-
-    -- The first memory cell in this layer will receive zeros coming from the
-    -- left, as there is no memory cell further left.
-    local h = lstm.Tensor()(self.batchSize, thisLayerSize):zero()
-    local c = lstm.Tensor()(self.batchSize, thisLayerSize):zero()
-    self.hiddenStates[l] = {[0] = h}
-    self.memories[l] = {[0] = c}
-    self.inputs[l] = {}
-
-    -- Iterate over memory cells feeding each successive tuple (h,c) into the next
-    -- LSTM memory cell in this layer.
-    for t=1,self.len do
-      -- If we're in the first layer, we get input from the actual input,
-      -- otherwise we get input from the output of the previous layer.
-      local x = nil
-      if l == 1 then
-        x = input:select(2, t)
-      else
-        x = self.lstms[l-1][t].output[1]
-      end
-      self.inputs[l][t] = x
-
-      -- Propagate this memory cell forward and prepare get h,c ready for 
-      -- the next timestep.
-      self.lstms[l][t]:forward({x, h, c})
-      h, c = unpack(self.lstms[l][t].output)
-
-      -- Save the hidden states and memories for back-propagation.
-      self.hiddenStates[l][t] = h
-      self.memories[l][t] = c
+      mapPar[1]:set(srcPar[1])
+      mapPar[2]:set(srcPar[2])
+      mapGradPar[1]:set(srcGradPar[1])
+      mapGradPar[2]:set(srcGradPar[2])
     end
   end
 
-  -- Copy the terminal output of the top layer for each batch member into the
-  -- output tensor.
-  local topLayer = self.numLayers
-  local topLayerSize = self.hiddenSizes[topLayer]
-  self.output = lstm.Tensor()(self.batchSize, topLayerSize)
-  for b=1, self.batchSize do
-    local thisLayer = self.lstms[topLayer]
-    local seqEnd = lengths[b]
-    local thisCell = thisLayer[seqEnd]
-    h = thisCell.output[1]
-    self.output[b]:copy(h[b])
-  end
-  return self.output
-end
-
--- This method is the crux of back-propagation. It computes the gradient of the
--- outputs with respect to the inputs.
---
--- `tuple` is the same table that is passed during forward propagation, namely
--- a table containing the inputs and the sequence lengths of the batches.
---
--- `upstreamGradOutput` should be a BxH matrix where B is batch size and H is the
--- hidden state size of the top layer. Each row will correspond to the gradient
--- of the objective function wrt the outputs of the LSTM memory cell at the
--- sequence terminus. However, this isn't necessarily the last memory cell in
--- the `lstms` array because sequences are different lengths.
-function MemoryChain:updateGradInput(tuple, upstreamGradOutput)
-  -- Rather than use the inputs provided, I use the cached ones from forward
-  -- propagation, because I can treate them the same regardless of the layer
-  -- we're back-propagating.
-  local _, lengths = unpack(tuple)
-  local x,h,c
-
-  -- Storage for the gradient wrt inputs of the whole chain.
-  self.gradInput = lstm.Tensor()(self.batchSize, self.len, self.inputSize)
-
-  -- Because each batch member has a sequence of a different length less than
-  -- or equal to self.len, we need to have some way to propagate errors starting
-  -- at the correct level. 
-  -- 
-  -- I build a binary matrix of size BxL. This matrix will be used to
-  -- determine where error terms are propagating back from. The matrix,
-  -- terminal, has a one at the terminal column in the sequence. 
-  local terminal = lstm.Tensor()(self.batchSize, self.len):zero()
-  for b=1,self.batchSize do
-    local T = lengths[b]
-    terminal[b][T] = 1
-  end
-
-  -- Stop at the top layer and work our way back down, computing the gradient
-  -- wrt the inputs into the layer.
-  local gradOutput
-  local topLayer = self.numLayers
-
-  -- Storage for a LSTM cell's gradient signal coming in on the output wires.
-  local hUpstream = lstm.Tensor()()
-  local cUpstream = lstm.Tensor()()
-
-  for l=topLayer,1,-1 do
-    local thisHiddenSize = self.hiddenSizes[l]
-    hUpstream:resize(self.batchSize, thisHiddenSize)
-    cUpstream:resize(self.batchSize, thisHiddenSize)
-
-    -- Work our way back in time for this layer.
-    for t=self.len,1,-1 do
-      local currentCell = self.lstms[l][t]
-
-      hUpstream:zero()
-      cUpstream:zero()
-
-      x = self.inputs[l][t]
-      h = self.hiddenStates[t-1]
-      c = self.memories[t-1]
-
-      if l == topLayer then
-        -- Replicate our mask of which batch members receive errors from the
-        -- upstream gradient at this time step. (replicated hiddenSize times)
-        local terminalColumn = terminal:select(2, t):contiguous():view(-1,1)
-        local upstreamSelect = torch.mm(terminalColumn, lstm.localize(torch.ones(1,thisHiddenSize)))
-        hUpstream:add(upstreamSelect:cmul(upstreamGradOutput))
-      else
-        local cellAboveMe = self.lstms[l+1][t]
-        hUpstream:add(cellAboveMe.gradInput[1])
-      end
-
-      if t < self.len then
-        local cellToMyRight = self.lstms[l][t+1]
-        hUpstream:add(cellToMyRight.gradInput[2])
-        cUpstream:add(cellToMyRight.gradInput[3])
-      end
-
-      -- Run the LSTM cell backward
-      currentCell:backward({x,h,c}, {hUpstream,cUpstream})
-
-      -- If we're the bottom layer, save gradInput[1] in the gradInput for the
-      -- whole chain.
-      if l == 1 then
-        self.gradInput:select(2,t):copy(currentCell.gradInput[1])
-      end
-    end
-  end
-  return self.gradInput
-end
-
--- This happens automatically when calling backward on the individual memory
--- cells in updateGradInput. Not sure what to do about the scale parameter.
-function MemoryChain:accGradParameters(input, gradOutput, scale)
+  -- These vectors will be the flattened vectors.
+  ns.par, ns.gradPar = mod:getParameters()
+  mod.ns = ns
+  return mod
 end
 
 return MemoryChain

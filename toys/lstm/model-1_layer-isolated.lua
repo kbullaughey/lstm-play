@@ -2,7 +2,6 @@
 
 toy = require '../toy/toy'
 check = require '../scripts/check_gradients'
-require 'lstm'
 require 'nngraph'
 
 -- Allow for command-line control over the seed and number of examples.
@@ -112,6 +111,117 @@ Linear = function(a, b)
   return mod
 end
 
+function addUnit(prev_h, prev_c, x, inputSize, hiddenSize)
+  local ns = {}
+  ns.i_gate = nn.Sigmoid()(nn.CAddTable()({
+    Linear(inputSize,hiddenSize)(x),
+    Linear(hiddenSize,hiddenSize)(prev_h),
+    Linear(hiddenSize,hiddenSize)(prev_c)
+  }))
+  ns.f_gate = nn.Sigmoid()(nn.CAddTable()({
+    Linear(inputSize,hiddenSize)(x),
+    Linear(hiddenSize,hiddenSize)(prev_h),
+    Linear(hiddenSize,hiddenSize)(prev_c)
+  }))
+  ns.learning = nn.Tanh()(nn.CAddTable()({
+    Linear(inputSize,hiddenSize)(x),
+    Linear(hiddenSize,hiddenSize)(prev_h)
+  }))
+  ns.c = nn.CAddTable()({
+    nn.CMulTable()({ns.f_gate, prev_c}),
+    nn.CMulTable()({ns.i_gate, ns.learning})
+  })
+  ns.o_gate = nn.Sigmoid()(nn.CAddTable()({
+    Linear(inputSize,hiddenSize)(x),
+    Linear(hiddenSize,hiddenSize)(prev_h),
+    Linear(hiddenSize,hiddenSize)(ns.c)
+  }))
+  ns.h = nn.CMulTable()({ns.o_gate, nn.Tanh()(ns.c)})
+  return ns
+end
+
+-- Build the network
+function buildNetwork(inputSize, hiddenSize, batchSize, maxLength)
+  -- Keep a namespace.
+  local ns = {inputSize=inputSize, hiddenSize=hiddenSize, maxLength=maxLength}
+
+  -- Reset our cache of linear maps.
+  LinearMaps = {}
+
+  -- This will be the initial h (probably set to zeros)
+  ns.initial_h = nn.Identity()()
+  ns.initial_c = nn.Identity()()
+
+  -- The length indicators is a one-hot representation of where each sequence
+  -- ends. It is a BxL matrix with exactly one 1 in each row.
+  ns.lengthIndicators = nn.Identity()()
+
+  -- This will be expecting a matrix of size BxLxI where B is the batch size,
+  -- L is the sequence length, and I is the number of inputs.
+  ns.inputs = nn.Identity()()
+  ns.splitInputs = nn.SplitTable(2)(ns.inputs)
+
+  -- We Save all the hidden states in this table for use in prediction.
+  ns.hiddenStates = {}
+  ns.hiddenStateMods = {}
+
+  -- Iterate over the anticipated sequence length, creating a unit for each
+  -- timestep.
+  local unit = {h=ns.initial_h, c=ns.initial_c}
+  for t=1,maxLength do
+    local x = nn.SelectTable(t)(ns.splitInputs)
+    unit = addUnit(unit.h, unit.c, x, inputSize, hiddenSize)
+    -- We prepare it to get joined along the time steps as the middle dimension,
+    -- by adding an middle dimension with size 1.
+    print("timestep " .. t .. ", batchsize: " .. batchSize .. ", hiddenSize " .. hiddenSize)
+    ns.hiddenStateMods[t] = nn.Reshape(batchSize, 1, hiddenSize)
+    ns.hiddenStates[t] = ns.hiddenStateMods[t](unit.h)
+  end
+
+  -- Paste all the hidden matricies together. Each one is BxH and the result
+  -- will be BxLxH
+  ns.out = nn.JoinTable(2)(ns.hiddenStates)
+
+  -- The length indicators have shape BxL and we replicate it for each hidden
+  -- dimension, resulting in BxLxH.
+  ns.lenInd = nn.Replicate(hiddenSize,3)(ns.lengthIndicators)
+
+  -- Output layer
+  --
+  -- We then use the lenInd matrix to mask the output matrix, leaving only 
+  -- the terminal vectors for each sequence activated. We can then sum over
+  -- the sequence to telescope the matrix, eliminating the L dimension. We
+  -- feed this through a linear map to produce the predictions.
+  ns.outSelectedMod = nn.Sum(2)
+  ns.outSelected = ns.outSelectedMod(nn.CMulTable()({ns.out, ns.lenInd}))
+  ns.y = Linear(hiddenSize, 1)(ns.outSelected)
+
+  -- Combine into a single graph
+  local mod = nn.gModule({ns.initial_h, ns.initial_c, ns.inputs, ns.lengthIndicators},{ns.y})
+
+  -- Set up parameter sharing. 
+  for t=2,maxLength do
+    for i=1,11 do
+      local src = LinearMaps[i]
+      local map = LinearMaps[(t-1)*11+i]
+      local srcPar, srcGradPar = src:parameters()
+      local mapPar, mapGradPar = map:parameters()
+      if #srcPar ~= #mapPar or #srcGradPar ~= #mapGradPar then
+        error("parameters structured funny, won't share")
+      end
+      mapPar[1]:set(srcPar[1])
+      mapPar[2]:set(srcPar[2])
+      mapGradPar[1]:set(srcGradPar[1])
+      mapGradPar[2]:set(srcGradPar[2])
+    end
+  end
+
+  -- These vectors will be the flattened vectors.
+  ns.par, ns.gradPar = mod:getParameters()
+  mod.ns = ns
+  return mod
+end
+
 -- Train the model, based on nn.StochasticGradient
 function lstmTrainer(module, criterion)
   local trainer = {}
@@ -190,7 +300,7 @@ trainingDataset = makeDataset(x_train_n, y_train, lengths_train, params.hidden,
 testingDataset = makeDataset(x_test_n, y_test, lengths_train, params.hidden,
   params.batch, maxLength)
 
-net = lstm.MemoryChain(1, {params.hidden}, 1, params.batch, maxLength)
+net = buildNetwork(1, params.hidden, params.batch, maxLength)
 
 -- Use least-squares loss function and SGD.
 criterion = nn.MSECriterion()
