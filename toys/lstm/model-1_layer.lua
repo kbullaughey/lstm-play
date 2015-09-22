@@ -114,7 +114,7 @@ function addUnit(prev_h, prev_c, x, inputSize, hiddenSize)
     Linear(hiddenSize,hiddenSize)(ns.c)
   }))
   -- Updated hidden state. Equation (11)
-  ns.h = nn.CMulTable()({ns.o_gate, ns.c})
+  ns.h = nn.CMulTable()({ns.o_gate, nn.Tanh()(ns.c)})
   return ns
 end
 
