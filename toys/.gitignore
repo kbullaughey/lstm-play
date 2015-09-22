@@ -1,3 +1,5 @@
 *.t7
 *.png
 *.out
+grid_predictions*.csv
+grid-predictions*.csv
