@@ -36,7 +36,7 @@ x = nn.Identity()()
 xs = nn.SplitTable(2)(x)
 h = h0
 for i=1,len do
-  h = nn.Tanh()(nn.Linear(ni+nh,nh)(nn.JoinTable(1)({h,nn.SelectTable(1)(xs)})))
+  h = nn.Tanh()(nn.Linear(ni+nh,nh)(nn.JoinTable(1)({h,nn.SelectTable(i)(xs)})))
 end
 y = nn.Linear(nh,no)(h)
 rnn = nn.gModule({h0,x},{y})
