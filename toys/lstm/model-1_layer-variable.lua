@@ -130,8 +130,8 @@ function lstmTrainer(module, criterion)
   
     local shuffledIndices = torch.randperm(dataset:size(), 'torch.LongTensor')
   
-    local par = module.ns.par
-    local gradPar = module.ns.gradPar
+    local par = module.par
+    local gradPar = module.gradPar
     par:uniform(-0.02, 0.02)
 
     while true do
@@ -190,7 +190,11 @@ trainingDataset = makeDataset(x_train_n, y_train, lengths_train, params.hidden,
 testingDataset = makeDataset(x_test_n, y_test, lengths_train, params.hidden,
   params.batch, maxLength)
 
-net = lstm.MemoryChain(1, {params.hidden}, 1, params.batch, maxLength)
+chainIn = nn.Identity()()
+chainOut = lstm.MemoryChain(1, {params.hidden}, params.batch, maxLength)(chainIn)
+predicted = nn.Linear(params.hidden,1)(chainOut)
+net = nn.gModule({chainIn},{predicted})
+net.par, net.gradPar = net:getParameters()
 
 -- Use least-squares loss function and SGD.
 criterion = nn.MSECriterion()
@@ -206,7 +210,7 @@ if params.mode == 'train' then
     end
   end
 
-  print("model parameter count: " .. net.ns.par:size(1))
+  print("model parameter count: " .. net.par:size(1))
   print("initial test err = " .. averageError(testingDataset))
   trainer:train(trainingDataset)
 
@@ -253,7 +257,7 @@ elseif params.mode == 'check' then
   mask = nn.JoinTable(1):forward(tablex.map(mapRow, exampleLengths:totable()))
   local err = check.checkInputsGrad(net, criterion, example, example[1][3], mask)
   print("error in estimate of inputs Jacobian: " .. err)
-  err = check.checkParametersGrad(net, criterion, example, net.ns.par, net.ns.gradPar)
+  err = check.checkParametersGrad(net, criterion, example, net.par, net.gradPar)
   print("error in estimate of parameters Jacobian: " .. err)
 
 else
