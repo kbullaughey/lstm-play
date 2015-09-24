@@ -4,6 +4,7 @@ lstm = {}
 
 lstm.MemoryCell = require 'lstm.MemoryCell'
 lstm.MemoryChain = require 'lstm.MemoryChain'
+lstm.MemoryChainFull = require 'lstm.MemoryChainFull'
 
 lstm.ping = function()
   return "pong"
