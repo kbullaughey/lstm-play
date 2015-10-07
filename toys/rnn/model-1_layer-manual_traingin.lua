@@ -137,6 +137,71 @@ function buildNetwork(inputSize, hiddenSize, length)
   return mod
 end
 
+-- Train the model, based on nn.StochasticGradient
+function rnnTrainer(module, criterion)
+  local trainer = {}
+  trainer.learningRate = 0.01
+  trainer.learningRateDecay = 0
+  trainer.maxIteration = 25
+  trainer.module = module
+  trainer.criterion = criterion
+  trainer.verbose = true
+  
+  function trainer:train(dataset)
+    local iteration = 1
+    local currentLearningRate = self.learningRate
+    local module = self.module
+    local criterion = self.criterion
+  
+    local shuffledIndices = torch.randperm(dataset:size(), 'torch.LongTensor')
+  
+    local par = module.ns.par
+    local gradPar = module.ns.gradPar
+    par:uniform(-0.02, 0.02)
+
+    while true do
+      local currentError = 0
+      local batches = 0
+      for t = 1,dataset:size() do
+        local example = dataset[shuffledIndices[t]]
+        local input = example[1]
+        local target = example[2]
+        gradPar:zero()
+
+        -- Perform forward propagation on both the rnn to compute the predictions
+        -- and on the criterion to compute the error.
+        module:forward(input)
+        criterion:forward(module.output, target)
+
+        -- Perform back propagation
+        criterion:backward(module.output, target)
+        module:backward(input, criterion.gradInput)
+
+        currentError = currentError + criterion.output
+        par:add(-self.learningRate, gradPar)
+        batches = batches + 1
+        if t % 1000 == 0 then
+          print ("current partial error = " .. currentError / batches)
+        end
+      end
+      currentError = currentError / dataset:size()
+  
+      if self.hookIteration then
+        self.hookIteration(self, iteration, currentError)
+      end
+  
+      iteration = iteration + 1
+      currentLearningRate = self.learningRate / (1 + iteration * self.learningRateDecay)
+      if self.maxIteration > 0 and iteration > self.maxIteration then
+        print("# you have reached the maximum number of iterations")
+        print("# training error = " .. currentError)
+        break
+      end
+    end
+  end
+  return trainer
+end
+
 function averageError(d)
   local err = 0
   for i=1,d:size() do
@@ -150,24 +215,16 @@ testingDataset = makeDataset(x_test_n, y_test, params.hidden, params.batch)
 
 rnn = buildNetwork(1, params.hidden, 3)
 
--- Implementing this function allows us to use the built-in SGD trainer.
-function rnn:accUpdateGradParameters(input, gradOutput, lr)
-  local par = self.ns.par
-  local gradPar = self.ns.gradPar
-  gradPar:zero()
-  self:accGradParameters(input, gradOutput, 1)
-  par:add(-lr, gradPar)
-end
-
 -- Use least-squares loss function and SGD.
 criterion = nn.MSECriterion()
 
-trainer = nn.StochasticGradient(rnn, criterion)
+trainer = rnnTrainer(rnn, criterion)
 trainer.maxIteration = params.iter
 trainer.learningRate = params.rate
 function trainer:hookIteration(iter, err)
-  if iter % 5 == 0 then
-    print("# [" .. iter .. "] test error = " .. averageError(testingDataset))
+  print("[" .. iter .. "] current error = " .. err)
+  if iter % 10 == 0 then
+    print("# test error = " .. averageError(testingDataset))
   end
 end
 
