@@ -8,9 +8,6 @@ simulated_datasets = {
   'variable_width_2-4-200k' => {
     'script' => 'toy/variable_width_2-4.lua',
   },
-  'variable_width_2-4-reversed' => {
-    'script' => 'toy/variable_width_2-4-reversed.lua',
-  },
 }
 
 simulated_dataset_outputs = []
