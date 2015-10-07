@@ -217,7 +217,7 @@ function lstmTrainer(module, criterion)
         module:backward(input, criterion.gradInput)
 
         currentError = currentError + criterion.output
-        module:updateParameters(self.learningRate)
+        par:add(-self.learningRate, gradPar)
         batches = batches + 1
         if t % 1000 == 0 then
           print ("current partial error = " .. currentError / batches)
