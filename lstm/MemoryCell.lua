@@ -1,5 +1,3 @@
-require 'nngraph'
-
 -- Make an LSTM graph node.
 -- 
 -- For a batch size, B, inputSize, P, and hiddenSize, Q, the sizes should

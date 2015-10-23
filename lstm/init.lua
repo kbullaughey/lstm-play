@@ -1,10 +1,12 @@
 require 'torch'
+require 'nngraph'
 
 lstm = {}
 
 lstm.MemoryCell = require 'lstm.MemoryCell'
-lstm.MemoryChain = require 'lstm.MemoryChain'
-lstm.MemoryChainFull = require 'lstm.MemoryChainFull'
+require 'lstm.MemoryChain'
+require 'lstm.MemoryChainFull'
+require 'lstm.MemoryChainDirect'
 
 lstm.ping = function()
   return "pong"

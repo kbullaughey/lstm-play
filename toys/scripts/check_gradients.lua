@@ -81,7 +81,8 @@ check.inputsGrad = function(net, criterion, example)
 end
 
 check.checkInputsGrad = function(net, criterion, example, actualInputs, mask)
-  local grad = check.maskedTensor(check.inputsGrad(net, criterion, example)[3], mask):extract()
+  local ipGrad = check.inputsGrad(net, criterion, example)
+  local grad = check.maskedTensor(ipGrad, mask):extract()
   local fd = check.inputsGradFD(net, criterion, example, actualInputs, mask)
   return torch.sqrt((fd - grad):pow(2):sum())
 end

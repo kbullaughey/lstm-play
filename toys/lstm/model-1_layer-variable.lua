@@ -3,7 +3,6 @@
 toy = require '../toy/toy'
 check = require '../scripts/check_gradients'
 require 'lstm'
-require 'nngraph'
 
 -- Allow for command-line control over the seed and number of examples.
 cmd = torch.CmdLine()
@@ -88,8 +87,6 @@ function makeDataset(x, y, lengths, hiddenSize, batchSize, maxLength)
   function dataset:size()
     return n
   end
-  local initial_h = torch.zeros(batchSize, hiddenSize)
-  local initial_c = torch.zeros(batchSize, hiddenSize)
   for i=1,dataset:size() do 
     local start = (i-1)*batchSize + 1
     local inputs = torch.reshape(x:narrow(1,start,batchSize), batchSize, maxLength, 1)
@@ -100,7 +97,7 @@ function makeDataset(x, y, lengths, hiddenSize, batchSize, maxLength)
       batchLengths[b][lengths:narrow(1,start,batchSize)[b]] = 1
     end
     -- Add a zero matrix to every example for the initial h state
-    dataset[i] = {{initial_h,initial_c,inputs,batchLengths}, targets}
+    dataset[i] = {{inputs,batchLengths}, targets}
   end
   return dataset
 end
@@ -187,14 +184,19 @@ end
 
 trainingDataset = makeDataset(x_train_n, y_train, lengths_train, params.hidden,
   params.batch, maxLength)
-testingDataset = makeDataset(x_test_n, y_test, lengths_train, params.hidden,
+testingDataset = makeDataset(x_test_n, y_test, lengths_test, params.hidden,
   params.batch, maxLength)
 
 chainIn = nn.Identity()()
-chainOut = lstm.MemoryChain(1, {params.hidden}, params.batch, maxLength)(chainIn)
+chainMod = lstm.MemoryChain(1, {params.hidden}, maxLength)
+chainOut = chainMod(chainIn)
 predicted = nn.Linear(params.hidden,1)(chainOut)
 net = nn.gModule({chainIn},{predicted})
 net.par, net.gradPar = net:getParameters()
+
+-- Need to reenable sharing after getParameters(), which broke my sharing.
+net.par, net.gradPar = net:getParameters()
+chainMod:setupSharing()
 
 -- Use least-squares loss function and SGD.
 criterion = nn.MSECriterion()
@@ -205,7 +207,7 @@ if params.mode == 'train' then
   trainer.learningRate = params.rate
   function trainer:hookIteration(iter, err)
     print("[" .. iter .. "] current error = " .. err)
-    if iter % 10 == 0 then
+    if iter % 2 == 0 then
       print("# test error = " .. averageError(testingDataset))
     end
   end
@@ -245,7 +247,7 @@ elseif params.mode == 'check' then
 
   -- Check gradients for the first training example
   example = trainingDataset[1]
-  exampleLengths = example[1][4]:nonzero():select(2,2)
+  exampleLengths = example[1][2]:nonzero():select(2,2)
   -- This method returns a vector containing L ones with the rest zeros.
   local mapRow = function(L)
     v = torch.zeros(4)
@@ -255,7 +257,7 @@ elseif params.mode == 'check' then
   -- We use mapRow to make a mask matrix so we can zero out inputs that
   -- are not really part of each example.
   mask = nn.JoinTable(1):forward(tablex.map(mapRow, exampleLengths:totable()))
-  local err = check.checkInputsGrad(net, criterion, example, example[1][3], mask)
+  local err = check.checkInputsGrad(net, criterion, example, example[1][1], mask)
   print("error in estimate of inputs Jacobian: " .. err)
   err = check.checkParametersGrad(net, criterion, example, net.par, net.gradPar)
   print("error in estimate of parameters Jacobian: " .. err)

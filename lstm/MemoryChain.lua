@@ -13,7 +13,7 @@ local MemoryChain, parent = torch.class('lstm.MemoryChain', 'nn.Module')
 --      memory cells and use the same ones for all sequences.
 function MemoryChain:__init(inputSize, hiddenSizes, maxLength)
   print("MemoryChain(" .. inputSize .. ',<' .. stringx.join(',',hiddenSizes) ..
-    '>,' .. batchSize .. "," .. maxLength .. ')')
+    '>,' .. maxLength .. ')')
   parent.__init(self)
 
   self.inputSize = inputSize
@@ -25,15 +25,16 @@ function MemoryChain:__init(inputSize, hiddenSizes, maxLength)
   -- batch.
   self.maxLength = maxLength
   self.lstms = {}
+  self.linearMaps = {}
 
   -- make enough lstm cells for the longest sequence
   local inSize = inputSize
   for l=1,self.numLayers do
     local thisHiddenSize = hiddenSizes[l]
     self.lstms[l] = {}
-    local linearMaps = {}
+    self.linearMaps[l] = {}
     for t=1,maxLength do
-      -- Since our other implementation, MemroyChainFull makes one graph out
+      -- Since our other implementation, MemoryChainFull makes one graph out
       -- of all the memory cells, we need to adapt the same call semantics here
       -- which entails passing in h_prev, c_prev, and x, and getting back h,c.
       -- We then wrap these into separate graphs, which will be manually 
@@ -42,22 +43,29 @@ function MemoryChain:__init(inputSize, hiddenSizes, maxLength)
       local c_prev = nn.Identity()()
       local x = nn.Identity()()
       local unit, maps = lstm.MemoryCell(h_prev, c_prev, x, inSize, thisHiddenSize)
-      local gUnit = nn.gModule({h_prev, c_prev, x},unit)
+      local gUnit = nn.gModule({h_prev, c_prev, x},{unit.h, unit.c})
       self.lstms[l][t] = gUnit
-      linearMaps[t] = maps
+      self.linearMaps[l][t] = maps
     end
 
+    inSize = thisHiddenSize
+  end
+  self:setupSharing()
+end
+
+function MemoryChain:setupSharing()
+  for l=1,self.numLayers do
     -- Set up parameter sharing among respective learn maps of each unit for
     -- this layer. Distinct layers do not share parameters.
-    local referenceMaps = linearMaps[1]
+    local referenceMaps = self.linearMaps[l][1]
     local linearMapsPerMemoryCell = #referenceMaps
     for t=2,maxLength do
-      if #linearMaps[t] ~= linearMapsPerMemoryCell then
-        error("unexpected number of linear maps: " .. #linearMaps[t])
+      if #self.linearMaps[l][t] ~= linearMapsPerMemoryCell then
+        error("unexpected number of linear maps: " .. #self.linearMaps[l][t])
       end
       for i=1,linearMapsPerMemoryCell do
         local src = referenceMaps[i]
-        local map = linearMaps[t][i]
+        local map = self.linearMaps[l][t][i]
         local srcPar, srcGradPar = src:parameters()
         local mapPar, mapGradPar = map:parameters()
         if #srcPar ~= #mapPar or #srcGradPar ~= #mapGradPar then
@@ -69,7 +77,6 @@ function MemoryChain:__init(inputSize, hiddenSizes, maxLength)
         mapGradPar[2]:set(srcGradPar[2])
       end
     end
-    inSize = thisHiddenSize
   end
 end
 
@@ -87,8 +94,8 @@ function MemoryChain:parameters()
 end
 
 -- Convenience method for making tensors that match the type of self.output
-function MemoryChain:makeTensor(a,b,c,d)
-  return torch.Tensor().typeAs(self.output):resize(a,b,c,d):zero()
+function MemoryChain:makeTensor(sizes)
+  return torch.Tensor():typeAs(self.output):resize(sizes):zero()
 end
 
 -- Receives a table containing two Tensors: input and a vector of lengths, as not all
@@ -97,6 +104,7 @@ end
 -- is the sequence. Last dimension is features.
 function MemoryChain:updateOutput(tuple)
   local input, lengths = unpack(tuple)
+  lengths = torch.nonzero(lengths):select(2,2)
   if input:dim() ~= 3 then
     error("expecting a 3D input")
   end
@@ -108,22 +116,22 @@ function MemoryChain:updateOutput(tuple)
   local topLayerSize = self.hiddenSizes[topLayer]
   self.output:resize(batchSize, topLayerSize)
 
-  for l=1, this.numLayers do
+  for l=1, self.numLayers do
     local thisHiddenSize = self.hiddenSizes[l]
     -- The first memory cell will receive zeros.
-    local h = self:makeTensor(batchSize, thisHiddenSize)
-    local c = self:makeTensor(batchSize, thisHiddenSize)
+    local h = self:makeTensor(torch.LongStorage{batchSize,thisHiddenSize})
+    local c = self:makeTensor(torch.LongStorage{batchSize,thisHiddenSize})
 
     -- Iterate over memory cells feeding each successive tuple (h,c) into the next
     -- LSTM memory cell.
     for t=1,longestExample do
       local x
       if l == 1 then
-        x = input:select(2, x)
+        x = input:select(2, t)
       else
         x = self.lstms[l-1][t].output[1]
       end
-      h, c = unpack(self.lstms[l][t]:forward({x, h, c}))
+      h, c = unpack(self.lstms[l][t]:forward({h, c, x}))
     end
   end
 
@@ -131,7 +139,8 @@ function MemoryChain:updateOutput(tuple)
   -- output tensor.
   for b=1, batchSize do
     local batchMemberLength = lengths[b]
-    h = self.lstms[topLayer][batchMemberLength].output[1]
+    local unit = self.lstms[topLayer][batchMemberLength]
+    h = unit.output[1]
     self.output[b]:copy(h[b])
   end
   return self.output
@@ -144,6 +153,7 @@ end
 -- are different lengths.
 function MemoryChain:updateGradInput(tuple, upstreamGradOutput)
   local input, lengths = unpack(tuple)
+  lengths = torch.nonzero(lengths):select(2,2)
   local h,c
   if input:dim() ~= 3 then
     error("MemoryChain:updageGradInput is expecting a 3D input tensor")
@@ -151,7 +161,7 @@ function MemoryChain:updateGradInput(tuple, upstreamGradOutput)
 
   local batchSize = input:size(1)
   local len = input:size(2)
-  self.gradInput.resize(batchSize, len, self.inputSize):zero()
+  self.gradInput:resize(batchSize, len, self.inputSize):zero()
 
   -- Because each batch member has a sequence of a different length less than
   -- or equal to self.len, we need to have some way to propagate errors starting
@@ -169,9 +179,9 @@ function MemoryChain:updateGradInput(tuple, upstreamGradOutput)
           -- This is the top, right corner. The only gradient we get is from
           -- upstreamGradOutput. The gradOutput for this cell is only non-zero
           -- where there are batch members that teriminate here.
-          local gradOutput = {
+          gradOutput = {
             -- Gradient for h
-            torch.Tensor():typeAs(self.output):resize(batchSize, thisHiddenSize):zero()
+            torch.Tensor():typeAs(self.output):resize(batchSize, thisHiddenSize):zero(),
             -- Gradient for c
             torch.Tensor():typeAs(self.output):resize(batchSize, thisHiddenSize):zero()
           }
@@ -185,7 +195,7 @@ function MemoryChain:updateGradInput(tuple, upstreamGradOutput)
           local lstmAbove = self.lstms[l+1][t]
           gradOutput = {
             -- Gradient for h
-            lstmAbove.gradInput[1]
+            lstmAbove.gradInput[1],
             -- Gradient for c
             torch.Tensor():typeAs(self.output):resize(batchSize, thisHiddenSize):zero()
           }
@@ -218,8 +228,8 @@ function MemoryChain:updateGradInput(tuple, upstreamGradOutput)
         x = self.lstms[l-1][t].output[1]
       end
       if t == 1 then
-        h = self:makeTensor(batchSize, thisHiddenSize)
-        c = self:makeTensor(batchSize, thisHiddenSize)
+        h = self:makeTensor(torch.LongStorage{batchSize,thisHiddenSize})
+        c = self:makeTensor(torch.LongStorage{batchSize,thisHiddenSize})
       else
         h = self.lstms[l][t-1].output[1]
         c = self.lstms[l][t-1].output[2]
@@ -233,7 +243,5 @@ function MemoryChain:updateGradInput(tuple, upstreamGradOutput)
   end
   return self.gradInput
 end
-
-return MemoryChain
 
 -- END

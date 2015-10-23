@@ -1,7 +1,7 @@
 #!/usr/bin/env th
 
 toy = require '../toy/toy'
-require 'nngraph'
+require 'lstm'
 
 -- Allow for command-line control over the seed and number of examples.
 cmd = torch.CmdLine()
@@ -9,14 +9,13 @@ cmd:text()
 cmd:text('Train single-layer LSTM model using toy data.')
 cmd:text()
 cmd:text('Options')
---cmd:option('-seed',os.time(),'initial random seed (defaults to current time)')
-cmd:option('-seed',0,'initial random seed (0)')
+cmd:option('-seed',os.time(),'initial random seed (defaults to current time)')
 cmd:option('-hidden',16,'hidden state size')
-cmd:option('-batch',32,'batch size')
-cmd:option('-rate',0.10,'learn rate')
+cmd:option('-batch',16,'batch size')
+cmd:option('-rate',0.05,'learn rate')
 cmd:option('-iter',5,'max number of iterations of SGD')
-cmd:option('-trained','trained_model-1_layer.t7','file name for saved trained model')
-cmd:option('-grid','grid_predictions-1_layer.csv','file name for saved grid predictions')
+cmd:option('-trained','trained_model-1_layer-fixed_rock.t7','file name for saved trained model')
+cmd:option('-grid','grid_predictions-1_layer-fixed_rock.csv','file name for saved grid predictions')
 cmd:text()
 
 -- parse input params
@@ -30,9 +29,12 @@ torch.manualSeed(params.seed)
 d = torch.load('../toy/fixed_width_3.t7')
 N = d:size(1)
 numInput = d:size(2) - 1
+maxLength = 4
 
 -- Separate data into inputs (x) and targets (y)
-x = d:narrow(2, 1, numInput)
+x = torch.Tensor(N,4)
+x:narrow(2, 1, numInput):copy(d:narrow(2, 1, numInput))
+lengths = torch.Tensor(N):fill(3)
 y = d:narrow(2, numInput+1, 1)
 
 -- Decide on the train/test split
@@ -43,26 +45,43 @@ train_n = N - test_n
 -- Extract out the training data
 x_train = x:narrow(1, 1, train_n)
 y_train = y:narrow(1, 1, train_n)
+lengths_train = lengths:narrow(1, 1, train_n)
 
 -- Extract out the test data
 x_test = x:narrow(1, train_n+1, test_n)
 y_test = y:narrow(1, train_n+1, test_n)
+lengths_test = lengths:narrow(1, train_n+1, test_n)
+
+-- This method returns a vector containing L ones with the rest zeros.
+local mapRow = function(L)
+  v = torch.zeros(4)
+  v:narrow(1,1,L):fill(1)
+  return v:view(1,-1)
+end
+-- We use mapRow to make a mask matrix so we can zero out inputs that
+-- are not really part of each example.
+mask_train = nn.JoinTable(1):forward(tablex.map(mapRow, lengths_train:totable()))
+mask_test = nn.JoinTable(1):forward(tablex.map(mapRow, lengths_test:totable()))
 
 -- Normalize the training inputs
-norm_mean = x_train:mean()
-norm_std = x_train:std()
+numCells = mask_train:sum()
+norm_mean = x_train:sum() / numCells
+norm_std = math.sqrt((x_train - norm_mean):cmul(mask_train):pow(2):sum() / numCells)
 x_train_n = (x_train - norm_mean) / norm_std
 
 -- Normalize the test inputs according to the training data normalization
 -- parameters.
 x_test_n = (x_test - norm_mean) / norm_std
 
+x_train_n:cmul(mask_train)
+x_test_n:cmul(mask_test)
+
 print("norm_mean: " .. norm_mean)
 print("norm_std: " .. norm_std)
 print("x_train_n:sum(): " .. x_train_n:sum())
 print("x_test_n:sum(): " .. x_test_n:sum())
 
-function makeDataset(x, y, hiddenSize, batchSize)
+function makeDataset(x, y, lengths, hiddenSize, batchSize, maxLength)
   dataset={batchSize=batchSize};
   local n = torch.floor(x:size(1) / batchSize)
   -- The nn SGD trainer will need a data structure whereby examples can be accessed
@@ -70,14 +89,17 @@ function makeDataset(x, y, hiddenSize, batchSize)
   function dataset:size()
     return n
   end
-  local initial_h = torch.zeros(batchSize, hiddenSize)
-  local initial_c = torch.zeros(batchSize, hiddenSize)
   for i=1,dataset:size() do 
     local start = (i-1)*batchSize + 1
-    local inputs = torch.reshape(x:narrow(1,start,batchSize), batchSize, numInput, 1)
+    local inputs = torch.reshape(x:narrow(1,start,batchSize), batchSize, maxLength, 1)
     local targets = torch.reshape(y:narrow(1,start,batchSize), batchSize, 1, 1)
+    -- Encode lengths using a one-hot per row strategy
+    local batchLengths = torch.zeros(batchSize,maxLength)
+    for b=1,batchSize do
+      batchLengths[b][lengths:narrow(1,start,batchSize)[b]] = 1
+    end
     -- Add a zero matrix to every example for the initial h state
-    dataset[i] = {{initial_h,initial_c,inputs}, targets}
+    dataset[i] = {{inputs,batchLengths}, targets}
   end
   return dataset
 end
@@ -86,100 +108,6 @@ LinearMaps = {}
 Linear = function(a, b)
   local mod = nn.Linear(a,b)
   table.insert(LinearMaps, mod)
-  return mod
-end
-
-function addUnit(prev_h, prev_c, x, inputSize, hiddenSize)
-  local ns = {}
-  -- Input gate. Equation (7)
-  ns.i_gate = nn.Sigmoid()(nn.CAddTable()({
-    Linear(inputSize,hiddenSize)(x),
-    Linear(hiddenSize,hiddenSize)(prev_h),
-    Linear(hiddenSize,hiddenSize)(prev_c)
-  }))
-  -- Forget gate. Equation (8)
-  ns.f_gate = nn.Sigmoid()(nn.CAddTable()({
-    Linear(inputSize,hiddenSize)(x),
-    Linear(hiddenSize,hiddenSize)(prev_h),
-    Linear(hiddenSize,hiddenSize)(prev_c)
-  }))
-  -- New contribution to c. Right term in equation (9)
-  ns.learning = nn.Tanh()(nn.CAddTable()({
-    Linear(inputSize,hiddenSize)(x),
-    Linear(hiddenSize,hiddenSize)(prev_h)
-  }))
-  -- Memory cell. Equation (9)
-  ns.c = nn.CAddTable()({
-    nn.CMulTable()({ns.f_gate, prev_c}),
-    nn.CMulTable()({ns.i_gate, ns.learning})
-  })
-  -- Output gate. Equation (10)
-  ns.o_gate = nn.Sigmoid()(nn.CAddTable()({
-    Linear(inputSize,hiddenSize)(x),
-    Linear(hiddenSize,hiddenSize)(prev_h),
-    Linear(hiddenSize,hiddenSize)(ns.c)
-  }))
-  -- Updated hidden state. Equation (11)
-  ns.h = nn.CMulTable()({ns.o_gate, nn.Tanh()(ns.c)})
-  return ns
-end
-
--- Build the network
-function buildNetwork(inputSize, hiddenSize, length)
-  -- Keep a namespace.
-  ns = {inputSize=inputSize, hiddenSize=hiddenSize, length=length}
-  --local ns = {inputSize=inputSize, hiddenSize=hiddenSize, length=length}
-
-  -- Reset our cache of linear maps.
-  LinearMaps = {}
-
-  -- This will be the initial h and c (probably set to zeros)
-  ns.initial_h = nn.Identity()()
-  ns.initial_c = nn.Identity()()
-
-  -- This will be expecting a matrix of size BxLxI where B is the batch size,
-  -- L is the sequence length, and I is the number of inputs.
-  ns.inputs = nn.Identity()()
-  ns.splitInputs = nn.SplitTable(2)(ns.inputs)
-  ns.units = {}
-
-  -- Iterate over the anticipated sequence length, creating a unit for each
-  -- timestep.
-  local unit = {h=ns.initial_h, c=ns.initial_c}
-  for i=1,length do
-    local x = nn.SelectTable(i)(ns.splitInputs)
-    unit = addUnit(unit.h, unit.c, x, inputSize, hiddenSize)
-    ns.units[i] = unit
-  end
-
-  -- Output layer
-  ns.yMod = Linear(hiddenSize, 1)
-  ns.y = ns.yMod(unit.h)
-
-  -- Combine into a single graph
-  --local mod = nn.gModule({ns.initial_h, ns.initial_c, ns.inputs},{ns.y})
-  mod = nn.gModule({ns.initial_h, ns.initial_c, ns.inputs},{ns.y})
-
-  -- Set up parameter sharing. 
-  for t=2,numInput do
-    for i=1,11 do
-      local src = LinearMaps[i]
-      local map = LinearMaps[(t-1)*11+i]
-      local srcPar, srcGradPar = src:parameters()
-      local mapPar, mapGradPar = map:parameters()
-      if #srcPar ~= #mapPar or #srcGradPar ~= #mapGradPar then
-        error("parameters structured funny, won't share")
-      end
-      mapPar[1]:set(srcPar[1])
-      mapPar[2]:set(srcPar[2])
-      mapGradPar[1]:set(srcGradPar[1])
-      mapGradPar[2]:set(srcGradPar[2])
-    end
-  end
-
-  -- These vectors will be the flattened vectors.
-  ns.par, ns.gradPar = mod:getParameters()
-  mod.ns = ns
   return mod
 end
 
@@ -201,8 +129,8 @@ function lstmTrainer(module, criterion)
   
     local shuffledIndices = torch.randperm(dataset:size(), 'torch.LongTensor')
   
-    local par = module.ns.par
-    local gradPar = module.ns.gradPar
+    local par = module.par
+    local gradPar = module.gradPar
     par:uniform(-0.02, 0.02)
 
     while true do
@@ -256,24 +184,24 @@ function averageError(d)
   return err / d:size()
 end
 
-trainingDataset = makeDataset(x_train_n, y_train, params.hidden, params.batch)
-testingDataset = makeDataset(x_test_n, y_test, params.hidden, params.batch)
+trainingDataset = makeDataset(x_train_n, y_train, lengths_train, params.hidden,
+  params.batch, maxLength)
+testingDataset = makeDataset(x_test_n, y_test, lengths_test, params.hidden,
+  params.batch, maxLength)
 
-net = buildNetwork(1, params.hidden, 3)
+chainIn = nn.Identity()()
+chainMod = lstm.MemoryChain(1, {params.hidden}, maxLength)
+chainOut = chainMod(chainIn)
+predictedMod = nn.Linear(params.hidden,1)
+predicted = predictedMod(chainOut)
+net = nn.gModule({chainIn},{predicted})
+
+-- Need to reenable sharing after getParameters(), which broke my sharing.
+net.par, net.gradPar = net:getParameters()
+chainMod:setupSharing()
 
 -- Use least-squares loss function and SGD.
 criterion = nn.MSECriterion()
-
-net.ns.par:uniform(-0.02, 0.02)
-torch.save("random_par", net.ns.par)
-print("model parameter count: " .. net.ns.par:size(1))
-print("example[1] sum: " .. trainingDataset[1][1][1]:sum())
-print("example[2] sum: " .. trainingDataset[1][1][2]:sum())
-print("example[3] sum: " .. trainingDataset[1][1][3]:sum())
-print(trainingDataset[1][1])
-print("forward sum: " .. net:forward(trainingDataset[1][1]):sum())
-
-os.exit()
 
 trainer = lstmTrainer(net, criterion)
 trainer.maxIteration = params.iter
@@ -285,7 +213,6 @@ function trainer:hookIteration(iter, err)
   end
 end
 
-print("model parameter count: " .. net.ns.par:size(1))
 print("initial test err = " .. averageError(testingDataset))
 trainer:train(trainingDataset)
 
@@ -295,16 +222,25 @@ torch.save(params.trained, {net=net})
 -- Output predictions along a grid so we can see how well it learned the function. We'll
 -- generate inputs without noise so we can see how well it does in the absence of noise,
 -- which will give us a sense of whether it's learned the true underlying function.
-grid_size = 200
+grid_size = math.ceil(200/params.batch)*params.batch
 target_grid = torch.linspace(0, toy.max_target, grid_size):view(grid_size,1)
-inputs_grid = toy.target_to_inputs(target_grid, 0)
-inputs_grid_n = torch.reshape((inputs_grid - norm_mean) / norm_std, grid_size, numInput, 1)
-prev_h_grid = torch.zeros(grid_size, params.hidden)
-prev_c_grid = torch.zeros(grid_size, params.hidden)
-predictions = net:forward({prev_h_grid, prev_c_grid, inputs_grid_n})
+inputs_grid = toy.target_to_inputs(target_grid, 0, maxLength)
+inputs_grid_n = (inputs_grid - norm_mean) / norm_std
+-- Use length 3 for all sequences
+inputs_grid_n:select(2, maxLength):fill(0)
+inputs_grid_lengths = torch.Tensor(grid_size):fill(3)
+inputs_grid_n = torch.reshape(inputs_grid_n, grid_size, maxLength, 1)
+predictionsDataset = makeDataset(inputs_grid_n, torch.zeros(grid_size,1),
+  inputs_grid_lengths, params.hidden, params.batch, maxLength)
+predictions = {}
+for i=1,predictionsDataset:size() do
+  predictions[i] = net:forward(predictionsDataset[i][1]):clone()
+end
+allPredictions = nn.JoinTable(1):forward(predictions)
 
 -- Use penlight to write the data
 pldata = require 'pl.data'
-pred_d = pldata.new(predictions:totable())
+pred_d = pldata.new(allPredictions:totable())
 pred_d:write(params.grid)
+
 -- END

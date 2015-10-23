@@ -98,6 +98,4 @@ local MemoryChainFull = function(inputSize, hiddenSizes, batchSize, maxLength)
   return mod
 end
 
-return MemoryChainFull
-
 -- END
