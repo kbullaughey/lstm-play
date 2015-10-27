@@ -8,6 +8,9 @@ simulated_datasets = {
   'variable_width_2-4-200k' => {
     'script' => 'toy/variable_width_2-4.lua',
   },
+  'variable_width_2-4-direct' => {
+    'script' => 'toy/variable_width_2-4-direct.lua',
+  },
 }
 
 simulated_dataset_outputs = []
@@ -199,10 +202,17 @@ lstm_variations = {
   "1_layer" => {
     "data" => "fixed_width_3",
     "script" => "lstm/model-1_layer.lua",
+    "plot" => "plot_predictions.R",
   },
   "1_layer-variable" => {
     "data" => "variable_width_2-4-200k",
     "script" => "lstm/model-1_layer-variable.lua",
+    "plot" => "plot_predictions.R",
+  },
+  "1_layer-variable-direct" => {
+    "data" => "variable_width_2-4-direct",
+    "script" => "lstm/model-1_layer-variable-direct.lua",
+    "plot" => "plot_predictions-direct.R",
   },
 }
 
@@ -216,10 +226,10 @@ lstm_variations.each do |k,info|
     end
   end
 
-  file "lstm/model-#{k}.pdf" => ["lstm/grid_predictions-#{k}.csv", "toy/plot_predictions.R"] do
+  file "lstm/model-#{k}.pdf" => ["lstm/grid_predictions-#{k}.csv", "toy/#{info['plot']}"] do
     Dir.chdir "lstm" do
       pred_file = "grid_predictions-#{k}.csv"
-      sh "R --vanilla --args #{pred_file} model-#{k}.pdf < ../toy/plot_predictions.R"
+      sh "R --vanilla --args #{pred_file} model-#{k}.pdf < ../toy/#{info['plot']}"
     end
     Rake::Task['lstm:png'].invoke
   end

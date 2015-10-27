@@ -104,13 +104,6 @@ function makeDataset(x, y, lengths, hiddenSize, batchSize, maxLength)
   return dataset
 end
 
-LinearMaps = {}
-Linear = function(a, b)
-  local mod = nn.Linear(a,b)
-  table.insert(LinearMaps, mod)
-  return mod
-end
-
 -- Train the model, based on nn.StochasticGradient
 function lstmTrainer(module, criterion)
   local trainer = {}

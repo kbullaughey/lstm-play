@@ -38,6 +38,25 @@ toy.target_to_inputs = function(target, sd, len)
   return inputs + torch.randn(n,len):mul(sd)
 end
 
+-- This version is the same as above, but for every target there is an input.
+-- This is for use in one-to-one sequence problems. It returns both the inputs
+-- and targets.
+toy.direct_target_to_inputs = function(target, sd, len)
+  -- Specify noise standard deviation if this optional parameter is not given
+  sd = sd or 0.2
+  len = len or 3
+  local seq = {}
+  for i=1,len do
+    seq[i] = target-i+1
+  end
+  local all_targets = nn.JoinTable(2):forward(seq)
+  local inputs = toy.f(all_targets)
+  -- Add some noise to the inputs
+  local n = target:size(1)
+  local noisy_inputs = inputs + torch.randn(n,len):mul(sd)
+  return noisy_inputs, all_targets
+end
+
 return toy
 
 -- END

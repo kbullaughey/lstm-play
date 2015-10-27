@@ -19,6 +19,7 @@ function MemoryChain:__init(inputSize, hiddenSizes, maxLength)
   self.inputSize = inputSize
   self.hiddenSizes = hiddenSizes
   self.numLayers = #hiddenSizes
+  self.gradInput = {torch.Tensor(), torch.Tensor()}
 
   -- There will be enough lstm.MemoryCells for sequences of maxLength  but
   -- in any particular batch we will only propagate enough for the current
@@ -153,15 +154,16 @@ end
 -- are different lengths.
 function MemoryChain:updateGradInput(tuple, upstreamGradOutput)
   local input, lengths = unpack(tuple)
+  local batchSize = input:size(1)
+  local len = input:size(2)
+  self.gradInput[1]:resize(batchSize, len, self.inputSize):zero()
+  self.gradInput[2]:resizeAs(lengths):zero()
+
   lengths = torch.nonzero(lengths):select(2,2)
   local h,c
   if input:dim() ~= 3 then
     error("MemoryChain:updageGradInput is expecting a 3D input tensor")
   end
-
-  local batchSize = input:size(1)
-  local len = input:size(2)
-  self.gradInput:resize(batchSize, len, self.inputSize):zero()
 
   -- Because each batch member has a sequence of a different length less than
   -- or equal to self.len, we need to have some way to propagate errors starting
@@ -215,8 +217,8 @@ function MemoryChain:updateGradInput(tuple, upstreamGradOutput)
         else
           -- Not top layer, so just take grad from above.
           local lstmAbove = self.lstms[l+1][t]
-          gradOutput[1]:add(lstmAbove.gradInput[1]) -- h
-          gradOutput[2]:add(lstmAbove.gradInput[2]) -- c
+          -- The h output of this lstm is the x input of the one above it.
+          gradOutput[1]:add(lstmAbove.gradInput[3])
         end
       end
 
@@ -237,7 +239,7 @@ function MemoryChain:updateGradInput(tuple, upstreamGradOutput)
       self.lstms[l][t]:backward({h, c, x}, gradOutput)
       -- If we're the bottom layer, we need to update gradInput
       if l == 1 then
-        self.gradInput:select(2, t):copy(self.lstms[1][t].gradInput[3])
+        self.gradInput[1]:select(2, t):copy(self.lstms[1][t].gradInput[3])
       end
     end
   end

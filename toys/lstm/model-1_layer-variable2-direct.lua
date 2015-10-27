@@ -14,10 +14,10 @@ cmd:option('-seed',os.time(),'initial random seed (defaults to current time)')
 cmd:option('-hidden',16,'hidden state size')
 cmd:option('-batch',16,'batch size')
 cmd:option('-rate',0.05,'learn rate')
-cmd:option('-iter',5,'max number of iterations of SGD')
-cmd:option('-trained','trained_model-1_layer-varible.t7','file name for saved trained model')
-cmd:option('-grid','grid_predictions-1_layer-variable.csv','file name for saved grid predictions')
-cmd:option('-data','../toy/variable_width_2-4-200k.t7','simulated data tensor file')
+cmd:option('-iter',4,'max number of iterations of SGD')
+cmd:option('-trained','trained_model-1_layer-varible-direct.t7','file name for saved trained model')
+cmd:option('-grid','grid_predictions-1_layer-variable-direct.csv','file name for saved grid predictions')
+cmd:option('-data','../toy/variable_width_2-4-direct.t7','simulated data tensor file')
 cmd:option('-mode','train','whether to train or check gradients [train (default) | check]')
 cmd:text()
 
@@ -29,16 +29,22 @@ print("mode: " .. params.mode)
 -- Make it reproducible
 torch.manualSeed(params.seed)
 
--- Read in the toy model data. This is a Tensor with five columns, the first
--- four are inputs and the last is the targets.
+-- Read in the toy model data. This is a Tensor with nine columns, the first
+-- four are inputs, the next four are outputs and the last is the lengths.
 d = torch.load(params.data)
 N = d:size(1)
-maxLength = d:size(2) - 2
+maxLength = 4
+--fixedLength = 3
 
 -- Separate data into inputs (x) and targets (y)
 x = d:narrow(2, 1, maxLength):clone()
-lengths = d:narrow(2, maxLength+1, 1):clone():view(-1)
-y = d:narrow(2, maxLength+2, 1):clone():view(-1,1)
+y = d:narrow(2, 5, maxLength):clone()
+if fixedLength then
+  y:narrow(2, fixedLength+1, maxLength-fixedLength):zero()
+  lengths = torch.Tensor(N):fill(fixedLength)
+else
+  lengths = d:select(2,9)
+end
 
 -- Decide on the train/test split
 test_frac = 0.3
@@ -57,7 +63,7 @@ lengths_test = lengths:narrow(1, train_n+1, test_n)
 
 -- This method returns a vector containing L ones with the rest zeros.
 local mapRow = function(L)
-  v = torch.zeros(4)
+  v = torch.zeros(maxLength)
   v:narrow(1,1,L):fill(1)
   return v:view(1,-1)
 end
@@ -90,14 +96,21 @@ function makeDataset(x, y, lengths, hiddenSize, batchSize, maxLength)
   for i=1,dataset:size() do 
     local start = (i-1)*batchSize + 1
     local inputs = torch.reshape(x:narrow(1,start,batchSize), batchSize, maxLength, 1)
-    local targets = torch.reshape(y:narrow(1,start,batchSize), batchSize, 1, 1)
+    local batchLengths = lengths:narrow(1,start,batchSize)
+
+    local targets = torch.reshape(y:narrow(1,start,batchSize), batchSize, maxLength, 1)
     -- Encode lengths using a one-hot per row strategy
-    local batchLengths = torch.zeros(batchSize,maxLength)
+    local lengthsOneHot = torch.zeros(batchSize,maxLength)
+    -- Provide a matrix that masks unused portions of the outputs. This will be
+    -- ones over the length of the sequence and zeros afterwards. 
+    local validSequence = torch.zeros(batchSize,maxLength)
     for b=1,batchSize do
-      batchLengths[b][lengths:narrow(1,start,batchSize)[b]] = 1
+      local len = batchLengths[b]
+      lengthsOneHot[b][len] = 1
+      validSequence[b]:narrow(1,1,len):fill(1)
     end
     -- Add a zero matrix to every example for the initial h state
-    dataset[i] = {{inputs,batchLengths}, targets}
+    dataset[i] = {{inputs,lengthsOneHot,batchLengths,validSequence}, targets}
   end
   return dataset
 end
@@ -180,21 +193,43 @@ trainingDataset = makeDataset(x_train_n, y_train, lengths_train, params.hidden,
 testingDataset = makeDataset(x_test_n, y_test, lengths_test, params.hidden,
   params.batch, maxLength)
 
+-- chainIn will be a table like {inputSeq,lengthsOneHot,validSeq}. We'll use validSeq
+-- this to constrain predictions to the portions of the sequence we care about in
+-- each batch member, given they will have different lengths.
 chainIn = nn.Identity()()
-chainMod = lstm.MemoryChain(1, {params.hidden}, maxLength)
-chainOut = chainMod(chainIn)
-predicted = nn.Linear(params.hidden,1)(chainOut)
-net = nn.gModule({chainIn},{predicted})
---net.par, net.gradPar = net:getParameters()
+inputSeq = nn.SelectTable(1)(chainIn)
+lengthsOneHot = nn.SelectTable(2)(chainIn)
+batchLengths = nn.SelectTable(3)(chainIn)
+validSeq = nn.SelectTable(4)(chainIn)
+reversedInputSeq = lstm.ReverseSequence(2)({inputSeq,batchLengths})
+chainModForward = lstm.MemoryChainDirect(1, {params.hidden}, maxLength)
+chainModBackward = lstm.MemoryChainDirect(1, {params.hidden}, maxLength)
+-- Each chain will output tensor of dims BxLxH
+chainOutForward = chainModForward({inputSeq, lengthsOneHot})
+chainOutBackward = chainModBackward({reversedInputSeq, lengthsOneHot})
+chainOutBackwardRereversed = lstm.ReverseSequence(2)({chainOutBackward,batchLengths})
+
+-- Add forward and reverse
+chainOut = nn.CAddTable()({chainOutForward, chainOutBackwardRereversed})
+
+-- In order to feed these through the linear map for prediction, we have to
+-- reshape so that we have a 2D tensor instead of 3D. Later we reshape it
+-- back.
+chainOutReshaped = nn.Reshape(params.batch*maxLength, params.hidden)(chainOut)
+predicted = nn.Linear(params.hidden,1)(chainOutReshaped)
+predictedReshaped = nn.Reshape(params.batch, maxLength, 1)(predicted)
+predictedConstrained = nn.CMulTable()({predictedReshaped,validSeq})
+net = nn.gModule({chainIn},{predictedConstrained})
 
 -- Need to reenable sharing after getParameters(), which broke my sharing.
 net.par, net.gradPar = net:getParameters()
-chainMod:setupSharing()
+chainModForward:setupSharing()
+chainModBackward:setupSharing()
 
 -- Use least-squares loss function and SGD.
 criterion = nn.MSECriterion()
 
-if params.mode == 'train' then
+--if params.mode == 'train' then
   trainer = lstmTrainer(net, criterion)
   trainer.maxIteration = params.iter
   trainer.learningRate = params.rate
@@ -216,14 +251,15 @@ if params.mode == 'train' then
   -- generate inputs without noise so we can see how well it does in the absence of noise,
   -- which will give us a sense of whether it's learned the true underlying function.
   grid_size = math.ceil(200/params.batch)*params.batch
-  target_grid = torch.linspace(0, toy.max_target, grid_size):view(grid_size,1)
-  inputs_grid = toy.target_to_inputs(target_grid, 0, maxLength)
+  target_grid_orig = torch.linspace(0, toy.max_target, grid_size):view(grid_size,1)
+  inputs_grid, target_grid = toy.direct_target_to_inputs(target_grid_orig, 0, maxLength)
+  target_grid:select(2,fixedLength+1, maxLength-fixedLength):fill(0)
   inputs_grid_n = (inputs_grid - norm_mean) / norm_std
   -- Use length 3 for all sequences
-  inputs_grid_n:select(2, maxLength):fill(0)
-  inputs_grid_lengths = torch.Tensor(grid_size):fill(3)
-  inputs_grid_n = torch.reshape(inputs_grid_n, grid_size, maxLength, 1)
-  predictionsDataset = makeDataset(inputs_grid_n, torch.zeros(grid_size,1),
+  inputs_grid_n:select(2, fixedLength):fill(0)
+  inputs_grid_lengths = torch.Tensor(grid_size):fill(fixedLength)
+  inputs_grid_n = torch.reshape(inputs_grid_n, grid_size, fixedLength, 1)
+  predictionsDataset = makeDataset(inputs_grid_n, target_grid,
     inputs_grid_lengths, params.hidden, params.batch, maxLength)
   predictions = {}
   for i=1,predictionsDataset:size() do
@@ -233,29 +269,30 @@ if params.mode == 'train' then
 
   -- Use penlight to write the data
   pldata = require 'pl.data'
-  pred_d = pldata.new(allPredictions:totable())
+  pred_d = pldata.new(allPredictions:view(-1,4):totable())
   pred_d:write(params.grid)
 
-elseif params.mode == 'check' then
-
-  -- Check gradients for the first training example
-  example = trainingDataset[1]
-  exampleLengths = example[1][2]:nonzero():select(2,2)
-  -- This method returns a vector containing L ones with the rest zeros.
-  local mapRow = function(L)
-    v = torch.zeros(4)
-    v:narrow(1,1,L):fill(1)
-    return v:view(1,-1)
-  end
-  -- We use mapRow to make a mask matrix so we can zero out inputs that
-  -- are not really part of each example.
-  mask = nn.JoinTable(1):forward(tablex.map(mapRow, exampleLengths:totable()))
-  local err = check.checkInputsGrad(net, criterion, example, example[1][1], mask)
-  print("error in estimate of inputs Jacobian: " .. err)
-  err = check.checkParametersGrad(net, criterion, example, net.par, net.gradPar)
-  print("error in estimate of parameters Jacobian: " .. err)
-
-else
-  error("invalid mode " .. params.mode)
-end
+--elseif params.mode == 'check' then
+--
+--  -- Check gradients for the first training example
+--  example = trainingDataset[1]
+--  exampleLengths = example[1][2]:nonzero():select(2,2)
+--  -- This method returns a vector containing L ones with the rest zeros.
+--  local mapRow = function(L)
+--    v = torch.zeros(4)
+--    v:narrow(1,1,L):fill(1)
+--    return v:view(1,-1)
+--  end
+--  -- We use mapRow to make a mask matrix so we can zero out inputs that
+--  -- are not really part of each example.
+--  mask = nn.JoinTable(1):forward(tablex.map(mapRow, exampleLengths:totable()))
+--  local get1 = function(z) return z[1] end
+--  local err = check.checkInputsGrad(net, criterion, example, example[1][1], mask, get1)
+--  print("error in estimate of inputs Jacobian: " .. err)
+--  err = check.checkParametersGrad(net, criterion, example, net.par, net.gradPar, get1)
+--  print("error in estimate of parameters Jacobian: " .. err)
+--
+--else
+--  error("invalid mode " .. params.mode)
+--end
 -- END

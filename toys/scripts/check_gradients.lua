@@ -75,13 +75,19 @@ check.forwardBackward = function(net, criterion, example)
   net:backward(inputs, criterion.gradInput)
 end
 
-check.inputsGrad = function(net, criterion, example)
+check.inputsGrad = function(net, criterion, example, extract)
   check.forwardBackward(net, criterion, example)
-  return net.gradInput
+  if extract == nil then
+    return net.gradInput
+  else
+    return extract(net.gradInput)
+  end
 end
 
-check.checkInputsGrad = function(net, criterion, example, actualInputs, mask)
-  local ipGrad = check.inputsGrad(net, criterion, example)
+-- extract is an optional method to get the gradient we want to check
+-- out of net.gradInput (i.e., if this returns a table).
+check.checkInputsGrad = function(net, criterion, example, actualInputs, mask, extract)
+  local ipGrad = check.inputsGrad(net, criterion, example, extract)
   local grad = check.maskedTensor(ipGrad, mask):extract()
   local fd = check.inputsGradFD(net, criterion, example, actualInputs, mask)
   return torch.sqrt((fd - grad):pow(2):sum())

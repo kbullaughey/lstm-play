@@ -90,14 +90,21 @@ function makeDataset(x, y, lengths, hiddenSize, batchSize, maxLength)
   for i=1,dataset:size() do 
     local start = (i-1)*batchSize + 1
     local inputs = torch.reshape(x:narrow(1,start,batchSize), batchSize, maxLength, 1)
+    local batchLengths = lengths:narrow(1,start,batchSize)
+
     local targets = torch.reshape(y:narrow(1,start,batchSize), batchSize, 1, 1)
     -- Encode lengths using a one-hot per row strategy
-    local batchLengths = torch.zeros(batchSize,maxLength)
+    local lengthsOneHot = torch.zeros(batchSize,maxLength)
+    -- Provide a matrix that masks unused portions of the outputs. This will be
+    -- ones over the length of the sequence and zeros afterwards. 
+    local validSequence = torch.zeros(batchSize,maxLength)
     for b=1,batchSize do
-      batchLengths[b][lengths:narrow(1,start,batchSize)[b]] = 1
+      local len = batchLengths[b]
+      lengthsOneHot[b][len] = 1
+      validSequence[b]:narrow(1,1,len):fill(1)
     end
     -- Add a zero matrix to every example for the initial h state
-    dataset[i] = {{inputs,batchLengths}, targets}
+    dataset[i] = {{inputs,lengthsOneHot,batchLengths,validSequence}, targets}
   end
   return dataset
 end
@@ -181,11 +188,16 @@ testingDataset = makeDataset(x_test_n, y_test, lengths_test, params.hidden,
   params.batch, maxLength)
 
 chainIn = nn.Identity()()
+inputSeq = nn.SelectTable(1)(chainIn)
+lengthsOneHot = nn.SelectTable(2)(chainIn)
+batchLengths = nn.SelectTable(3)(chainIn)
+validSeq = nn.SelectTable(4)(chainIn)
+reversedInputSeq = lstm.ReverseSequence(2)({inputSeq,batchLengths})
 chainMod = lstm.MemoryChain(1, {params.hidden}, maxLength)
-chainOut = chainMod(chainIn)
+chainOut = chainMod({reversedInputSeq, lengthsOneHot})
 predicted = nn.Linear(params.hidden,1)(chainOut)
 net = nn.gModule({chainIn},{predicted})
---net.par, net.gradPar = net:getParameters()
+net.par, net.gradPar = net:getParameters()
 
 -- Need to reenable sharing after getParameters(), which broke my sharing.
 net.par, net.gradPar = net:getParameters()

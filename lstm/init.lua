@@ -7,6 +7,7 @@ lstm.MemoryCell = require 'lstm.MemoryCell'
 require 'lstm.MemoryChain'
 require 'lstm.MemoryChainFull'
 require 'lstm.MemoryChainDirect'
+require 'lstm.ReverseSequence'
 
 lstm.ping = function()
   return "pong"
