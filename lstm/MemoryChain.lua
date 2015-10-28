@@ -60,7 +60,7 @@ function MemoryChain:setupSharing()
     -- this layer. Distinct layers do not share parameters.
     local referenceMaps = self.linearMaps[l][1]
     local linearMapsPerMemoryCell = #referenceMaps
-    for t=2,maxLength do
+    for t=2,self.maxLength do
       if #self.linearMaps[l][t] ~= linearMapsPerMemoryCell then
         error("unexpected number of linear maps: " .. #self.linearMaps[l][t])
       end
