@@ -5,8 +5,12 @@ local stringx = require 'pl.stringx'
 
 local MemoryChainDirect, parent = torch.class('lstm.MemoryChainDirect', 'lstm.MemoryChain')
 
--- Same as MemoryChain
+-- Same as MemoryChain, except direct only supports one layer, because it seems
+-- to make more sense to interlace forward and backward layers.
 function MemoryChainDirect:__init(inputSize, hiddenSizes, maxLength)
+  if #hiddenSizes ~= 1 then
+    error("MemoryChainDirect only works with exactly one layer")
+  end
   parent.__init(self, inputSize, hiddenSizes, maxLength)
 end
 
@@ -25,33 +29,22 @@ function MemoryChainDirect:updateOutput(tuple)
   local longestExample = input:size(2)
 
   -- Storage for output
-  local topLayer = self.numLayers
-  local topLayerSize = self.hiddenSizes[topLayer]
-  self.output:resize(batchSize, longestExample, topLayerSize)
+  local layerSize = self.hiddenSizes[1]
+  self.output:resize(batchSize, longestExample, layerSize)
 
-  for l=1, self.numLayers do
-    local thisHiddenSize = self.hiddenSizes[l]
-    -- The first memory cell will receive zeros.
-    local h = self:makeTensor(torch.LongStorage{batchSize,thisHiddenSize})
-    local c = self:makeTensor(torch.LongStorage{batchSize,thisHiddenSize})
+  -- The first memory cell will receive zeros.
+  local h = self:makeTensor(torch.LongStorage{batchSize,layerSize})
+  local c = self:makeTensor(torch.LongStorage{batchSize,layerSize})
 
-    -- Iterate over memory cells feeding each successive tuple (h,c) into the next
-    -- LSTM memory cell.
-    for t=1,longestExample do
-      local x
-      if l == 1 then
-        x = input:select(2, t)
-      else
-        x = self.lstms[l-1][t].output[1]
-      end
-      h, c = unpack(self.lstms[l][t]:forward({h, c, x}))
-      -- If we're in the top layer, copy h into the output tensor. At present we copy
-      -- all timesteps for all batch members. It's up to the prediction layer
-      -- to only use the ones that are relevant for each batch memeber.
-      if l == topLayer then
-        self.output:select(2,t):copy(h)
-      end
-    end
+  -- Iterate over memory cells feeding each successive tuple (h,c) into the next
+  -- LSTM memory cell.
+  for t=1,longestExample do
+    local x = input:select(2, t)
+    h, c = unpack(self.lstms[1][t]:forward({h, c, x}))
+    -- At present we copy all timesteps for all batch members. It's up to the
+    -- prediction layer to only use the ones that are relevant for each batch
+    -- memeber.
+    self.output:select(2,t):copy(h)
   end
   return self.output
 end
@@ -60,8 +53,6 @@ end
 -- and H is hidden state size. It contains the gradient of the objective function
 -- wrt outputs from the LSTM memory cell at each position in the sequence.
 function MemoryChainDirect:updateGradInput(tuple, upstreamGradOutput)
---  print("upstreamGradOuput:sum(3):")
---  print(upstreamGradOutput:sum(3):view(-1,4))
   local input, lengths = unpack(tuple)
   local batchSize = input:size(1)
   local len = input:size(2)
@@ -87,80 +78,49 @@ function MemoryChainDirect:updateGradInput(tuple, upstreamGradOutput)
 
   -- Go in reverse order from the highest layer down and from the end back to
   -- the beginning.
-  --local topLayer = self.numLayers
-  local l = 1
-  --for l=topLayer,1,-1 do
-    local thisHiddenSize = self.hiddenSizes[l]
-    gradOutput[1]:resize(batchSize, thisHiddenSize)
-    gradOutput[2]:resize(batchSize, thisHiddenSize)
-    for t=len,1,-1 do
---      if self.debugHook ~= nil then
---        self.debugHook(t)
---      end
-      gradOutput[1]:zero()
-      gradOutput[2]:zero()
-      -- If we're in the top layer, we'll get some messages from upstreamGradOutput,
-      -- otherwise we'll get the messages from the lstm above. In either case, above
-      -- will be BxH.
-      local above
-      --if l == topLayer then
-        above = upstreamGradOutput:select(2,t)
---      else
---        local lstmAbove = self.lstms[l+1][t]
---        above = lstmAbove.gradInput[3]
---      end
-      -- Only incorporate messages from above if batch member is at least t long.
-      for b=1,batchSize do
-        if t <= lengths[b] then
-          gradOutput[1][b]:add(above[b])
-        end
+  local layerSize = self.hiddenSizes[1]
+  gradOutput[1]:resize(batchSize, layerSize)
+  gradOutput[2]:resize(batchSize, layerSize)
+  for t=len,1,-1 do
+    gradOutput[1]:zero()
+    gradOutput[2]:zero()
+    -- If we're in the top layer, we'll get some messages from upstreamGradOutput,
+    -- otherwise we'll get the messages from the lstm above. In either case, above
+    -- will be BxH.
+    local above = upstreamGradOutput:select(2,t)
+    -- Only incorporate messages from above if batch member is at least t long.
+    for b=1,batchSize do
+      if t <= lengths[b] then
+        gradOutput[1][b]:add(above[b])
       end
-        
-      -- Only get messages from the right if we're not at the right-most edge or
-      -- this batch member's sequence doesn't extend right.
-      if t < len then
-        local lstmRight = self.lstms[l][t+1]
-        for b=1,batchSize do
-          if t < lengths[b] then
-            -- message from h
-            gradOutput[1][b]:add(lstmRight.gradInput[1][b])
-            -- message from c
-            gradOutput[2][b]:add(lstmRight.gradInput[2][b])
-          end
-        end
-      end
-
-      -- Backward propagate this memory cell
-      local x
-      --if l == 1 then
-        x = input:select(2,t)
-      --else
-      --  x = self.lstms[l-1][t].output[1]
-      --end
-      if t == 1 then
-        h = self:makeTensor(torch.LongStorage{batchSize,thisHiddenSize})
-        c = self:makeTensor(torch.LongStorage{batchSize,thisHiddenSize})
-      else
-        h = self.lstms[l][t-1].output[1]
-        c = self.lstms[l][t-1].output[2]
-      end
---      print("ready to propagate")
---      print(gradOutput[1]:sum(2))
---      print(gradOutput[2]:sum(2))
-      self.lstms[l][t]:backward({h, c, x}, gradOutput)
-      -- If we're the bottom layer, we need to update gradInput
-      --if l == 1 then
-        self.gradInput[1]:select(2,t):copy(self.lstms[1][t].gradInput[3])
---        for b=1,batchSize do
---          if t <= lengths[b] then
---            self.gradInput[1][{{b},{t}}]:copy(self.lstms[1][t].gradInput[3][b])
---          end
---        end
-      --end
     end
-  --end
---  print("gradInput done")
---  print(self.gradInput[1]:view(-1,4))
+      
+    -- Only get messages from the right if we're not at the right-most edge or
+    -- this batch member's sequence doesn't extend right.
+    if t < len then
+      local lstmRight = self.lstms[1][t+1]
+      for b=1,batchSize do
+        if t < lengths[b] then
+          -- message from h
+          gradOutput[1][b]:add(lstmRight.gradInput[1][b])
+          -- message from c
+          gradOutput[2][b]:add(lstmRight.gradInput[2][b])
+        end
+      end
+    end
+
+    -- Backward propagate this memory cell
+    local x = input:select(2,t)
+    if t == 1 then
+      h = self:makeTensor(torch.LongStorage{batchSize,layerSize})
+      c = self:makeTensor(torch.LongStorage{batchSize,layerSize})
+    else
+      h = self.lstms[1][t-1].output[1]
+      c = self.lstms[1][t-1].output[2]
+    end
+    self.lstms[1][t]:backward({h, c, x}, gradOutput)
+    self.gradInput[1]:select(2,t):copy(self.lstms[1][t].gradInput[3])
+  end
   return self.gradInput
 end
 
