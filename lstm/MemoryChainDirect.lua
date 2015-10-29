@@ -21,7 +21,6 @@ end
 -- Output is size BxLxH
 function MemoryChainDirect:updateOutput(tuple)
   local input, lengths = unpack(tuple)
-  lengths = torch.nonzero(lengths):select(2,2)
   if input:dim() ~= 3 then
     error("expecting a 3D input")
   end
@@ -33,8 +32,8 @@ function MemoryChainDirect:updateOutput(tuple)
   self.output:resize(batchSize, longestExample, layerSize)
 
   -- The first memory cell will receive zeros.
-  local h = self:makeTensor(torch.LongStorage{batchSize,layerSize})
-  local c = self:makeTensor(torch.LongStorage{batchSize,layerSize})
+  local h = self.h:resize(batchSize,layerSize):zero()
+  local c = self.c:resize(batchSize,layerSize):zero()
 
   -- Iterate over memory cells feeding each successive tuple (h,c) into the next
   -- LSTM memory cell.
@@ -59,7 +58,6 @@ function MemoryChainDirect:updateGradInput(tuple, upstreamGradOutput)
   self.gradInput[1]:resize(batchSize, len, self.inputSize):zero()
   self.gradInput[2]:resizeAs(lengths):zero()
 
-  lengths = torch.nonzero(lengths):select(2,2)
   local h,c
   if input:dim() ~= 3 then
     error("MemoryChainDirect:updageGradInput is expecting a 3D input tensor")
@@ -69,18 +67,19 @@ function MemoryChainDirect:updateGradInput(tuple, upstreamGradOutput)
   -- or equal to len, we need to have some way to propagate errors starting
   -- at the correct level. 
 
+  local layerSize = self.hiddenSizes[1]
+
   -- Memory we'll use for the upstream messages of each LSTM memory cell.
   -- Since each memory cell outputs an h and c, we need gradients of these.
+  self.h:resize(batchSize, layerSize)
+  self.c:resize(batchSize, layerSize)
+  self.gradOutputScratch.h:resize(batchSize,layerSize)
+  self.gradOutputScratch.c:resize(batchSize,layerSize)
   local gradOutput = {
-    torch.Tensor():typeAs(self.output),
-    torch.Tensor():typeAs(self.output)
+    self.gradOutputScratch.h, 
+    self.gradOutputScratch.c 
   }
 
-  -- Go in reverse order from the highest layer down and from the end back to
-  -- the beginning.
-  local layerSize = self.hiddenSizes[1]
-  gradOutput[1]:resize(batchSize, layerSize)
-  gradOutput[2]:resize(batchSize, layerSize)
   for t=len,1,-1 do
     gradOutput[1]:zero()
     gradOutput[2]:zero()
@@ -112,8 +111,8 @@ function MemoryChainDirect:updateGradInput(tuple, upstreamGradOutput)
     -- Backward propagate this memory cell
     local x = input:select(2,t)
     if t == 1 then
-      h = self:makeTensor(torch.LongStorage{batchSize,layerSize})
-      c = self:makeTensor(torch.LongStorage{batchSize,layerSize})
+      h = self.h:zero()
+      c = self.c:zero()
     else
       h = self.lstms[1][t-1].output[1]
       c = self.lstms[1][t-1].output[2]

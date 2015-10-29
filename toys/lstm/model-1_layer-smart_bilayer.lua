@@ -1,5 +1,8 @@
 #!/usr/bin/env th
 
+-- TODO:
+-- get rid of OneHot term in dataset
+
 toy = require '../toy/toy'
 check = require '../scripts/check_gradients'
 require 'lstm'
@@ -96,18 +99,15 @@ function makeDataset(x, y, lengths, hiddenSize, batchSize, maxLength)
     local batchLengths = lengths:narrow(1,start,batchSize)
 
     local targets = torch.reshape(y:narrow(1,start,batchSize), batchSize, maxLength, 1)
-    -- Encode lengths using a one-hot per row strategy
-    local lengthsOneHot = torch.zeros(batchSize,maxLength)
     -- Provide a matrix that masks unused portions of the outputs. This will be
     -- ones over the length of the sequence and zeros afterwards. 
     local validSequence = torch.zeros(batchSize,maxLength)
     for b=1,batchSize do
       local len = batchLengths[b]
-      lengthsOneHot[b][len] = 1
       validSequence[b]:narrow(1,1,len):fill(1)
     end
     -- Add a zero matrix to every example for the initial h state
-    dataset[i] = {{inputs,lengthsOneHot,batchLengths,validSequence}, targets}
+    dataset[i] = {{inputs,batchLengths,validSequence}, targets}
   end
   return dataset
 end
@@ -190,22 +190,21 @@ trainingDataset = makeDataset(x_train_n, y_train, lengths_train, params.hidden,
 testingDataset = makeDataset(x_test_n, y_test, lengths_test, params.hidden,
   params.batch, maxLength)
 
--- chainIn will be a table like {inputSeq,lengthsOneHot,validSeq}. We'll use validSeq
+-- chainIn will be a table like {inputSeq,lengths,validSeq}. We'll use validSeq
 -- this to constrain predictions to the portions of the sequence we care about in
 -- each batch member, given they will have different lengths.
 chainIn = nn.Identity()()
 inputSeq = nn.SelectTable(1)(chainIn)
-lengthsOneHot = nn.SelectTable(2)(chainIn)
-batchLengths = nn.SelectTable(3)(chainIn)
-validSeq = nn.SelectTable(4)(chainIn)
+batchLengths = nn.SelectTable(2)(chainIn)
+validSeq = nn.SelectTable(3)(chainIn)
 reversedInputSeq = lstm.ReverseSequence(2)({inputSeq,batchLengths})
 chainModForward = lstm.MemoryChainDirect(1, {params.hidden}, maxLength)
-chainOutForward = chainModForward({inputSeq, lengthsOneHot})
+chainOutForward = chainModForward({inputSeq, batchLengths})
 -- The backward chain will take output from the forward chain and the input
 chainOutForwardReversed = lstm.ReverseSequence(2)({chainOutForward,batchLengths})
 backwardWithInput = nn.JoinTable(3)({reversedInputSeq, chainOutForwardReversed})
 chainModBackward = lstm.MemoryChainDirect(1+params.hidden, {params.hidden}, maxLength)
-chainOutBackward = chainModBackward({backwardWithInput, lengthsOneHot})
+chainOutBackward = chainModBackward({backwardWithInput, batchLengths})
 chainOut = lstm.ReverseSequence(2)({chainOutBackward,batchLengths})
 
 -- In order to feed these through the linear map for prediction, we have to
@@ -238,8 +237,6 @@ for i=1,2 do
   print(trainingDataset[i][1][2])
   print("input[3]:")
   print(trainingDataset[i][1][3])
-  print("input[4]:")
-  print(trainingDataset[i][1][4])
   print("targets:")
   print(trainingDataset[i][2]:view(-1,maxLength))
   net:zeroGradParameters()

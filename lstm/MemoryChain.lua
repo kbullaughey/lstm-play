@@ -52,6 +52,15 @@ function MemoryChain:__init(inputSize, hiddenSizes, maxLength)
     inSize = thisHiddenSize
   end
   self:setupSharing()
+
+  -- Create some storage we'll use during forward/backward. We'll resize this once
+  -- we know the batch size.
+  self.h = torch.Tensor():typeAs(self.output)
+  self.c = torch.Tensor():typeAs(self.output)
+  self.gradOutputScratch = {
+    h=torch.Tensor():typeAs(self.output),
+    c=torch.Tensor():typeAs(self.output)
+  }
 end
 
 function MemoryChain:setupSharing()
@@ -94,18 +103,12 @@ function MemoryChain:parameters()
   return unitPar, unitGradPar
 end
 
--- Convenience method for making tensors that match the type of self.output
-function MemoryChain:makeTensor(sizes)
-  return torch.Tensor():typeAs(self.output):resize(sizes):zero()
-end
-
 -- Receives a table containing two Tensors: input and a vector of lengths, as not all
 -- sequences will span the full length dimension of the tensor.
 -- If input is 3D then the first dimension is batch, otherwise the first dim
 -- is the sequence. Last dimension is features.
 function MemoryChain:updateOutput(tuple)
   local input, lengths = unpack(tuple)
-  lengths = torch.nonzero(lengths):select(2,2)
   if input:dim() ~= 3 then
     error("expecting a 3D input")
   end
@@ -120,8 +123,8 @@ function MemoryChain:updateOutput(tuple)
   for l=1, self.numLayers do
     local thisHiddenSize = self.hiddenSizes[l]
     -- The first memory cell will receive zeros.
-    local h = self:makeTensor(torch.LongStorage{batchSize,thisHiddenSize})
-    local c = self:makeTensor(torch.LongStorage{batchSize,thisHiddenSize})
+    local h = self.h:resize(batchSize, thisHiddenSize):zero()
+    local c = self.c:resize(batchSize, thisHiddenSize):zero()
 
     -- Iterate over memory cells feeding each successive tuple (h,c) into the next
     -- LSTM memory cell.
@@ -156,11 +159,11 @@ function MemoryChain:updateGradInput(tuple, upstreamGradOutput)
   local input, lengths = unpack(tuple)
   local batchSize = input:size(1)
   local len = input:size(2)
+
+  -- Get storage the correct sizes
   self.gradInput[1]:resize(batchSize, len, self.inputSize):zero()
   self.gradInput[2]:resizeAs(lengths):zero()
 
-  lengths = torch.nonzero(lengths):select(2,2)
-  local h,c
   if input:dim() ~= 3 then
     error("MemoryChain:updageGradInput is expecting a 3D input tensor")
   end
@@ -174,6 +177,12 @@ function MemoryChain:updateGradInput(tuple, upstreamGradOutput)
   local topLayer = self.numLayers
   for l=topLayer,1,-1 do
     local thisHiddenSize = self.hiddenSizes[l]
+    -- Resize scratch memory so it's the right size for this layer.
+    self.h:resize(batchSize, thisHiddenSize)
+    self.c:resize(batchSize, thisHiddenSize)
+    self.gradOutputScratch.h:resize(batchSize, thisHiddenSize)
+    self.gradOutputScratch.c:resize(batchSize, thisHiddenSize)
+
     for t=len,1,-1 do
       local gradOutput
       if t == len then
@@ -182,10 +191,8 @@ function MemoryChain:updateGradInput(tuple, upstreamGradOutput)
           -- upstreamGradOutput. The gradOutput for this cell is only non-zero
           -- where there are batch members that teriminate here.
           gradOutput = {
-            -- Gradient for h
-            torch.Tensor():typeAs(self.output):resize(batchSize, thisHiddenSize):zero(),
-            -- Gradient for c
-            torch.Tensor():typeAs(self.output):resize(batchSize, thisHiddenSize):zero()
+            self.gradOutputScratch.h:zero(),
+            self.gradOutputScratch.c:zero()
           }
           for b=1,batchSize do
             if lengths[b] == t then
@@ -199,7 +206,7 @@ function MemoryChain:updateGradInput(tuple, upstreamGradOutput)
             -- Gradient for h
             lstmAbove.gradInput[1],
             -- Gradient for c
-            torch.Tensor():typeAs(self.output):resize(batchSize, thisHiddenSize):zero()
+            self.gradOutputScratch.c:zero()
           }
         end
       else
@@ -223,15 +230,15 @@ function MemoryChain:updateGradInput(tuple, upstreamGradOutput)
       end
 
       -- Backward propagate this memory cell
-      local x
+      local x, h, c
       if l == 1 then
         x = input:select(2,t)
       else
         x = self.lstms[l-1][t].output[1]
       end
       if t == 1 then
-        h = self:makeTensor(torch.LongStorage{batchSize,thisHiddenSize})
-        c = self:makeTensor(torch.LongStorage{batchSize,thisHiddenSize})
+        h = self.h:zero()
+        c = self.c:zero()
       else
         h = self.lstms[l][t-1].output[1]
         c = self.lstms[l][t-1].output[2]
