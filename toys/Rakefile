@@ -158,6 +158,10 @@ namespace :mlp do
   end
 end
 
+#------------
+# Vanilla RNN
+#------------
+
 %w(rnn/trained_model-1_layer.t7 rnn/grid_predictions-1_layer.csv).each do |f|
   file f => %w(rnn/model-1_layer.sh rnn/model-1_layer.lua toy/fixed_width_3.t7) do
     Rake::Task['rnn:one_layer:train'].invoke
@@ -197,6 +201,10 @@ namespace :rnn do
 end
 
 task :rnn => ['rnn:png']
+
+#---------------
+# LSTM-based RNN
+#---------------
 
 lstm_variations = {
   "1_layer" => {
@@ -259,5 +267,61 @@ namespace :lstm do
 end
 
 task :lstm => lstm_figures + ['lstm:png']
+
+#--------------
+# GRU-based RNN
+#--------------
+
+gru_variations = {
+  "1_layer-variable" => {
+    "data" => "variable_width_2-4-200k",
+    "script" => "gru/model-1_layer-variable.lua",
+    "plot" => "plot_predictions.R",
+  },
+}
+
+gru_figures = gru_variations.keys.collect{|k| "gru/model-#{k}.pdf"}
+
+gru_variations.each do |k,info|
+  training_outputs = ["gru/trained_model-#{k}.t7", "gru/grid_predictions-#{k}.csv"]
+  training_outputs.each do |f|
+    file f => ["gru/model-#{k}.sh", info['script'], "toy/#{info['data']}.t7"] do
+      Rake::Task["gru:#{k}:train"].invoke
+    end
+  end
+
+  file "gru/model-#{k}.pdf" => ["gru/grid_predictions-#{k}.csv", "toy/#{info['plot']}"] do
+    Dir.chdir "gru" do
+      pred_file = "grid_predictions-#{k}.csv"
+      sh "R --vanilla --args #{pred_file} model-#{k}.pdf < ../toy/#{info['plot']}"
+    end
+    Rake::Task['gru:png'].invoke
+  end
+end
+
+namespace :gru do
+  gru_variations.each do |k,info|
+    namespace k do
+      desc "Train the model"
+      task :train do
+        Dir.chdir "gru" do
+          sh "./model-#{k}.sh"
+        end
+      end
+
+      desc "Visualize how well it did"
+      task :visualize => "gru/model-#{k}.pdf"
+    end
+  end
+
+  desc "Generate png figures from PDFs"
+  task :png do
+    Dir.chdir 'gru' do
+      sh "../scripts/png_figures.sh"
+    end
+  end
+end
+
+task :gru => gru_figures + ['gru:png']
 
 task :default => ['toy'] + simulated_dataset_outputs + trained_models + ['mlp', 'rnn']

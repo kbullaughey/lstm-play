@@ -4,10 +4,13 @@ require 'nngraph'
 lstm = {}
 
 lstm.MemoryCell = require 'lstm.MemoryCell'
+lstm.GRUCell = require 'lstm.GRUCell'
 require 'lstm.MemoryChain'
 require 'lstm.MemoryChainFull'
 require 'lstm.MemoryChainDirect'
 require 'lstm.ReverseSequence'
+require 'lstm.GRUChain'
+require 'lstm.GRUChainDirect'
 
 lstm.ping = function()
   return "pong"
