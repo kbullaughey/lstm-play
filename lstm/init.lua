@@ -11,6 +11,7 @@ require 'lstm.MemoryChainDirect'
 require 'lstm.ReverseSequence'
 require 'lstm.GRUChain'
 require 'lstm.GRUChainDirect'
+require 'lstm.InvertIndex'
 
 lstm.ping = function()
   return "pong"
