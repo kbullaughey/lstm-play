@@ -5,13 +5,20 @@ lstm = {}
 
 lstm.MemoryCell = require 'lstm.MemoryCell'
 lstm.GRUCell = require 'lstm.GRUCell'
+lstm.debugger = require 'lstm.debugger'
+
 require 'lstm.MemoryChain'
 require 'lstm.MemoryChainFull'
 require 'lstm.MemoryChainDirect'
 require 'lstm.ReverseSequence'
 require 'lstm.GRUChain'
+require 'lstm.GRUChainInitialized'
 require 'lstm.GRUChainDirect'
 require 'lstm.InvertIndex'
+require 'lstm.PartialCrossEntropyCriterion'
+require 'lstm.D'
+
+lstm.NoGrad = require 'lstm.NoGrad'
 
 lstm.ping = function()
   return "pong"

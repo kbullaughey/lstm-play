@@ -19,7 +19,11 @@ function GRUChain:__init(inputSize, hiddenSizes, maxLength)
   self.inputSize = inputSize
   self.hiddenSizes = hiddenSizes
   self.numLayers = #hiddenSizes
-  self.gradInput = {torch.Tensor(), torch.Tensor()}
+
+  -- By default we don't care about the gradient wrt the initial state, but if
+  -- we're using a GRUChainInitialized, we want that too, so we compute it in case.
+  self.allGradInput = {torch.Tensor(), torch.Tensor(), torch.Tensor()}
+  self.gradInput = {self.allGradInput[2], self.allGradInput[3]}
 
   -- There will be enough lstm.GRUCells for sequences of maxLength  but
   -- in any particular batch we will only propagate enough for the current
@@ -98,6 +102,12 @@ function GRUChain:parameters()
   return unitPar, unitGradPar
 end
 
+-- The first cell will receive zeros.
+function GRUChain:initialState(layer, batchSize)
+  local thisHiddenSize = self.hiddenSizes[layer]
+  return self.h:resize(batchSize, thisHiddenSize):zero()
+end
+
 -- Receives a table containing two Tensors: input and a vector of lengths, as not all
 -- sequences will span the full length dimension of the tensor.
 -- If input is 3D then the first dimension is batch, otherwise the first dim
@@ -116,9 +126,7 @@ function GRUChain:updateOutput(tuple)
   self.output:resize(batchSize, topLayerSize)
 
   for l=1, self.numLayers do
-    local thisHiddenSize = self.hiddenSizes[l]
-    -- The first cell will receive zeros.
-    local h = self.h:resize(batchSize, thisHiddenSize):zero()
+    local h = self:initialState(l, batchSize)
 
     -- Iterate over cells feeding each successive h into the next
     -- GRU cell.
@@ -155,8 +163,9 @@ function GRUChain:updateGradInput(tuple, upstreamGradOutput)
   local len = input:size(2)
 
   -- Get storage the correct sizes
-  self.gradInput[1]:resize(batchSize, len, self.inputSize):zero()
-  self.gradInput[2]:resizeAs(lengths):zero()
+  self.allGradInput[1]:resize(batchSize, self.hiddenSizes[1]):zero()
+  self.allGradInput[2]:resize(batchSize, len, self.inputSize):zero()
+  self.allGradInput[3]:resizeAs(lengths):zero()
 
   if input:dim() ~= 3 then
     error("GRUChain:updageGradInput is expecting a 3D input tensor")
@@ -191,7 +200,7 @@ function GRUChain:updateGradInput(tuple, upstreamGradOutput)
         else
           -- right edge, but not top layer
           local gruAbove = self.grus[l+1][t]
-	  -- Gradient for h
+	        -- Gradient for h
           gradOutput = gruAbove.gradInput[1]
         end
       else
@@ -229,7 +238,10 @@ function GRUChain:updateGradInput(tuple, upstreamGradOutput)
       self.grus[l][t]:backward({h, x}, gradOutput)
       -- If we're the bottom layer, we need to update gradInput
       if l == 1 then
-        self.gradInput[1]:select(2, t):copy(self.grus[1][t].gradInput[2])
+        self.allGradInput[2]:select(2, t):copy(self.grus[1][t].gradInput[2])
+        if t == 1 then
+          self.allGradInput[1]:copy(self.grus[1][1].gradInput[1])
+        end
       end
     end
   end
