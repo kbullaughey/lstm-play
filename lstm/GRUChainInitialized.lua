@@ -1,14 +1,14 @@
 local Class, parent = torch.class('lstm.GRUChainInitialized', 'lstm.GRUChain')
 
 function Class:__init(inputSize, hiddenSizes, maxLength)
-  parent:__init(inputSize, hiddenSizes, maxLength)
+  parent.__init(self, inputSize, hiddenSizes, maxLength)
   self.gradInput = self.allGradInput
 end
 
 -- Only the first layer can receive an initial state.
 function Class:initialState(layer, batchSize)
   if layer > 1 then
-    return parent:initialState(layer, batchSize)
+    return parent.initialState(self, layer, batchSize)
   end
   return self.initial
 end
@@ -20,11 +20,11 @@ end
 function Class:updateOutput(tuple)
   local initial, input, lengths = unpack(tuple)
   self.initial = initial
-  return parent:updateOutput({input,lengths})
+  return parent.updateOutput(self, {input,lengths})
 end
 
 function Class:updateGradInput(tuple, upstreamGradOutput)
   local initial, input, lengths = unpack(tuple)
-  parent:updateGradInput({input,lengths}, upstreamGradOutput)
+  parent.updateGradInput(self, {input,lengths}, upstreamGradOutput)
   return self.allGradInput
 end

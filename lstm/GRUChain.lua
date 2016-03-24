@@ -22,7 +22,7 @@ function GRUChain:__init(inputSize, hiddenSizes, maxLength)
 
   -- By default we don't care about the gradient wrt the initial state, but if
   -- we're using a GRUChainInitialized, we want that too, so we compute it in case.
-  self.allGradInput = {torch.Tensor(), torch.Tensor(), torch.Tensor()}
+  self.allGradInput = {lstm.Tensor(), lstm.Tensor(), lstm.Tensor()}
   self.gradInput = {self.allGradInput[2], self.allGradInput[3]}
 
   -- There will be enough lstm.GRUCells for sequences of maxLength  but
@@ -48,7 +48,7 @@ function GRUChain:__init(inputSize, hiddenSizes, maxLength)
       local x = nn.Identity()()
       local unit, maps = lstm.GRUCell(h_prev, x, inSize, thisHiddenSize)
       local gUnit = nn.gModule({h_prev, x}, unit)
-      self.grus[l][t] = gUnit
+      self.grus[l][t] = lstm.localize(gUnit)
       self.linearMaps[l][t] = maps
     end
 
@@ -58,8 +58,8 @@ function GRUChain:__init(inputSize, hiddenSizes, maxLength)
 
   -- Create some storage we'll use during forward/backward. We'll resize this once
   -- we know the batch size.
-  self.h = torch.Tensor():typeAs(self.output)
-  self.gradOutputScratch = torch.Tensor():typeAs(self.output)
+  self.h = lstm.Tensor():typeAs(self.output)
+  self.gradOutputScratch = lstm.Tensor():typeAs(self.output)
 end
 
 function GRUChain:setupSharing()
@@ -119,6 +119,8 @@ function GRUChain:updateOutput(tuple)
   end
   local batchSize = input:size(1)
   local longestExample = input:size(2)
+  lstm.sync()
+  local localLengths = lengths:typeAs(torch.Tensor())
 
   -- Storage for output
   local topLayer = self.numLayers
@@ -144,7 +146,7 @@ function GRUChain:updateOutput(tuple)
   -- Copy the terminal output of the top layer for each batch member into the
   -- output tensor.
   for b=1, batchSize do
-    local batchMemberLength = lengths[b]
+    local batchMemberLength = localLengths[b]
     local unit = self.grus[topLayer][batchMemberLength]
     h = unit.output
     self.output[b]:copy(h[b])
@@ -166,6 +168,8 @@ function GRUChain:updateGradInput(tuple, upstreamGradOutput)
   self.allGradInput[1]:resize(batchSize, self.hiddenSizes[1]):zero()
   self.allGradInput[2]:resize(batchSize, len, self.inputSize):zero()
   self.allGradInput[3]:resizeAs(lengths):zero()
+  lstm.sync()
+  local localLengths = lengths:typeAs(torch.Tensor())
 
   if input:dim() ~= 3 then
     error("GRUChain:updageGradInput is expecting a 3D input tensor")
@@ -193,7 +197,7 @@ function GRUChain:updateGradInput(tuple, upstreamGradOutput)
           -- where there are batch members that teriminate here.
           gradOutput = self.gradOutputScratch:zero()
           for b=1,batchSize do
-            if lengths[b] == t then
+            if localLengths[b] == t then
               gradOutput[b]:add(upstreamGradOutput[b])
             end
           end
@@ -211,7 +215,7 @@ function GRUChain:updateGradInput(tuple, upstreamGradOutput)
         if l == topLayer then
           -- Only copy messages from above if the batch member terminates here.
           for b=1,batchSize do
-            if lengths[b] == t then
+            if localLengths[b] == t then
               gradOutput[b]:add(upstreamGradOutput[b])
             end
           end

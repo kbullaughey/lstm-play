@@ -19,7 +19,7 @@ function MemoryChain:__init(inputSize, hiddenSizes, maxLength)
   self.inputSize = inputSize
   self.hiddenSizes = hiddenSizes
   self.numLayers = #hiddenSizes
-  self.gradInput = {torch.Tensor(), torch.Tensor()}
+  self.gradInput = {lstm.Tensor(), lstm.Tensor()}
 
   -- There will be enough lstm.MemoryCells for sequences of maxLength  but
   -- in any particular batch we will only propagate enough for the current
@@ -55,11 +55,11 @@ function MemoryChain:__init(inputSize, hiddenSizes, maxLength)
 
   -- Create some storage we'll use during forward/backward. We'll resize this once
   -- we know the batch size.
-  self.h = torch.Tensor():typeAs(self.output)
-  self.c = torch.Tensor():typeAs(self.output)
+  self.h = lstm.Tensor():typeAs(self.output)
+  self.c = lstm.Tensor():typeAs(self.output)
   self.gradOutputScratch = {
-    h=torch.Tensor():typeAs(self.output),
-    c=torch.Tensor():typeAs(self.output)
+    h=lstm.Tensor():typeAs(self.output),
+    c=lstm.Tensor():typeAs(self.output)
   }
 end
 

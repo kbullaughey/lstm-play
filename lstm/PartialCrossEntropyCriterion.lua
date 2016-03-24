@@ -6,7 +6,7 @@ function PartialCrossEntropyCriterion:__init(vocabSize)
   self.vocabSize = vocabSize
   self.lsm = nn.LogSoftMax()
   self.nll = nn.ClassNLLCriterion()
-  self.inversePartition = torch.Tensor(vocabSize)
+  self.inversePartition = lstm.Tensor(vocabSize)
   self:resetPartition()
 end
 

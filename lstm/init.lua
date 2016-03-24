@@ -11,6 +11,7 @@ require 'lstm.MemoryChain'
 require 'lstm.MemoryChainFull'
 require 'lstm.MemoryChainDirect'
 require 'lstm.ReverseSequence'
+require 'lstm.ReverseSequenceEven'
 require 'lstm.GRUChain'
 require 'lstm.GRUChainInitialized'
 require 'lstm.GRUChainDirect'
@@ -28,6 +29,8 @@ local use_cuda = false
 
 -- Enable use of cuda
 lstm.cuda = function()
+  require 'cutorch'
+  require 'cunn'
   use_cuda = true
 end
 
@@ -39,18 +42,36 @@ lstm.sync = function()
 end
 
 -- Choose a tensor constructor
-lstm.Tensor = function()
+lstm.Tensor = function(...)
   if use_cuda then
-    return torch.CudaTensor
+    return torch.CudaTensor(...)
   end
-  return torch.Tensor
+  return torch.Tensor(...)
 end
 
 lstm.localize = function(thing)
-  if use_cuda then
-    return thing:cuda()
+  if not use_cuda then
+    return thing
+  end
+  if torch.isTensor(thing) or type(thing) == "table" then
+    if torch.type(thing.cuda) == "function" then
+      return thing:cuda()
+    end
   end
   return thing
+end
+
+function lstm.deepLocalize(t)
+  if type(t) ~= 'table' then
+    return lstm.localize(t)
+  end
+  local mt = getmetatable(t)
+  local res = {}
+  for k,v in pairs(t) do
+    res[k] = lstm.deepLocalize(v)
+  end
+  setmetatable(res,mt)
+  return res
 end
 
 return lstm

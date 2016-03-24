@@ -18,7 +18,7 @@ function ReverseSequence:__init(timeDimension)
     error("Invalid timeDimension: " .. timeDimension)
   end
   self.timeDimension = timeDimension
-  self.gradInput = {torch.Tensor(), torch.Tensor()}
+  self.gradInput = {lstm.Tensor(), lstm.Tensor()}
 end
 
 -- This module has no parameters.
@@ -49,7 +49,8 @@ function ReverseSequence:updateGradInput(tuple, upstreamGradOutput)
   -- Since reversing is its own opposite, I can just reverse the gradient to get the
   -- gradient of the outputs wrt inputs.
   local gradTuple = {upstreamGradOutput, lengths}
-  local reversedGrad = lstm.ReverseSequence(self.timeDimension):forward(gradTuple)
+  local reverser = lstm.localize(lstm.ReverseSequence(self.timeDimension))
+  local reversedGrad = reverser:forward(gradTuple)
   self.gradInput[1]:resizeAs(inputs):zero():copy(reversedGrad)
   self.gradInput[2]:resizeAs(lengths):zero()
   return self.gradInput

@@ -15,14 +15,6 @@ function debugger:disable()
   self.enabled = false
 end
 
-function debugger:isTensor(thing)
-  if string.match(torch.type(thing), "^torch.[A-Za-z]*Tensor") ~= nil then
-    return true
-  else
-    return false
-  end
-end
-
 function debugger:describeTable(x)
   local lines = {"{"}
   for i,val in ipairs(x) do
@@ -60,7 +52,7 @@ function debugger:describe(thing)
     return self:describeTable(thing)
   elseif t == "number" then
     return self:describeNumber(thing)
-  elseif self:isTensor(thing) then
+  elseif torch.isTensor(thing) then
     return self:describeTensor(thing)
   elseif t == "nil" then
     return "nil"
