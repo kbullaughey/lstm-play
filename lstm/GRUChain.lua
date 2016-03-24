@@ -31,6 +31,7 @@ function GRUChain:__init(inputSize, hiddenSizes, maxLength)
   self.maxLength = maxLength
   self.grus = {}
   self.linearMaps = {}
+  self.gruDropoutMods = {}
 
   -- make enough gru cells for the longest sequence
   local inSize = inputSize
@@ -38,6 +39,7 @@ function GRUChain:__init(inputSize, hiddenSizes, maxLength)
     local thisHiddenSize = hiddenSizes[l]
     self.grus[l] = {}
     self.linearMaps[l] = {}
+    self.gruDropoutMods[l] = {}
     for t=1,maxLength do
       -- Since our original LSTM implementation LSTMChainFull makes one graph out
       -- of all the cells, we use the same call semantics here
@@ -46,10 +48,11 @@ function GRUChain:__init(inputSize, hiddenSizes, maxLength)
       -- propagated forward and backward as part of this Module.
       local h_prev = nn.Identity()()
       local x = nn.Identity()()
-      local unit, maps = lstm.GRUCell(h_prev, x, inSize, thisHiddenSize)
+      local unit, maps, dropoutMod = lstm.GRUCell(h_prev, x, inSize, thisHiddenSize)
       local gUnit = nn.gModule({h_prev, x}, unit)
       self.grus[l][t] = lstm.localize(gUnit)
       self.linearMaps[l][t] = maps
+      self.gruDropoutMods[l][t] = dropoutMod
     end
 
     inSize = thisHiddenSize
