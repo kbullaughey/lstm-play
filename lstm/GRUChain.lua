@@ -1,6 +1,6 @@
 local stringx = require 'pl.stringx'
 
-local GRUChain, parent = torch.class('lstm.GRUChain', 'nn.Module')
+local Class, parent = torch.class('lstm.GRUChain', 'nn.Module')
 
 -- Constructor. It takes three parameters:
 --  1. inputSize [integer] - width of input vector
@@ -11,7 +11,8 @@ local GRUChain, parent = torch.class('lstm.GRUChain', 'nn.Module')
 --  3. maxLength [integer] - The length of the longest sequence we should
 --      expect to see. This is necessary because we pre-create all the
 --      cells and use the same ones for all sequences.
-function GRUChain:__init(inputSize, hiddenSizes, maxLength)
+--  4. dropout [float] - The dropout fraction for recurrent connections.
+function Class:__init(inputSize, hiddenSizes, maxLength, dropout)
   print("GRUChain(" .. inputSize .. ',<' .. stringx.join(',',hiddenSizes) ..
     '>,' .. maxLength .. ')')
   parent.__init(self)
@@ -48,7 +49,7 @@ function GRUChain:__init(inputSize, hiddenSizes, maxLength)
       -- propagated forward and backward as part of this Module.
       local h_prev = nn.Identity()()
       local x = nn.Identity()()
-      local unit, maps, dropoutMod = lstm.GRUCell(h_prev, x, inSize, thisHiddenSize)
+      local unit, maps, dropoutMod = lstm.GRUCell(h_prev, x, inSize, thisHiddenSize, dropout)
       local gUnit = nn.gModule({h_prev, x}, unit)
       self.grus[l][t] = lstm.localize(gUnit)
       self.linearMaps[l][t] = maps
@@ -65,7 +66,7 @@ function GRUChain:__init(inputSize, hiddenSizes, maxLength)
   self.gradOutputScratch = lstm.Tensor():typeAs(self.output)
 end
 
-function GRUChain:setupSharing()
+function Class:setupSharing()
   for l=1,self.numLayers do
     -- Set up parameter sharing among respective learn maps of each unit for
     -- this layer. Distinct layers do not share parameters.
@@ -94,7 +95,7 @@ end
 
 -- Return the parameters for the first unit in each layer, which are the reference
 -- sets. All other units in each layer share with these.
-function GRUChain:parameters()
+function Class:parameters()
   local unitPar = {}
   local unitGradPar = {}
   for l=1,self.numLayers do
@@ -106,7 +107,7 @@ function GRUChain:parameters()
 end
 
 -- The first cell will receive zeros.
-function GRUChain:initialState(layer, batchSize)
+function Class:initialState(layer, batchSize)
   local thisHiddenSize = self.hiddenSizes[layer]
   return self.h:resize(batchSize, thisHiddenSize):zero()
 end
@@ -115,7 +116,7 @@ end
 -- sequences will span the full length dimension of the tensor.
 -- If input is 3D then the first dimension is batch, otherwise the first dim
 -- is the sequence. Last dimension is features.
-function GRUChain:updateOutput(tuple)
+function Class:updateOutput(tuple)
   local input, lengths = unpack(tuple)
   if input:dim() ~= 3 then
     error("expecting a 3D input")
@@ -162,7 +163,7 @@ end
 -- wrt outputs from the GRU cell at the sequence terminus. However, this
 -- isn't necessarily the last cell in the `grus` array because sequences
 -- are different lengths.
-function GRUChain:updateGradInput(tuple, upstreamGradOutput)
+function Class:updateGradInput(tuple, upstreamGradOutput)
   local input, lengths = unpack(tuple)
   local batchSize = input:size(1)
   local len = input:size(2)
@@ -253,6 +254,24 @@ function GRUChain:updateGradInput(tuple, upstreamGradOutput)
     end
   end
   return self.gradInput
+end
+
+function Class:training()
+  parent.training(self)
+  for l=1,self.numLayers do
+    for _,mod in ipairs(self.gruDropoutMods[l]) do
+      mod:training()
+    end
+  end
+end
+
+function Class:evaluate()
+  parent.evaluate(self)
+  for l=1,self.numLayers do
+    for _,mod in ipairs(self.gruDropoutMods[l]) do
+      mod:evaluate()
+    end
+  end
 end
 
 -- END

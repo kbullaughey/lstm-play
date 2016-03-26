@@ -1,7 +1,7 @@
 local Class, parent = torch.class('lstm.GRUChainInitialized', 'lstm.GRUChain')
 
-function Class:__init(inputSize, hiddenSizes, maxLength)
-  parent.__init(self, inputSize, hiddenSizes, maxLength)
+function Class:__init(inputSize, hiddenSizes, maxLength, dropout)
+  parent.__init(self, inputSize, hiddenSizes, maxLength, dropout)
   self.gradInput = self.allGradInput
 end
 
