@@ -16,6 +16,7 @@ require 'lstm.GRUChain'
 require 'lstm.GRUChainInitialized'
 require 'lstm.GRUChainDirect'
 require 'lstm.InvertIndex'
+require 'lstm.MixtureGate'
 require 'lstm.PartialCrossEntropyCriterion'
 require 'lstm.D'
 
