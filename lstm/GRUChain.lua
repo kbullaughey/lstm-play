@@ -114,8 +114,8 @@ end
 
 -- Receives a table containing two Tensors: input and a vector of lengths, as not all
 -- sequences will span the full length dimension of the tensor.
--- If input is 3D then the first dimension is batch, otherwise the first dim
--- is the sequence. Last dimension is features.
+-- Input is 3D with the first dimension batch, second dimension is sequence and the
+-- last dimenion is features.
 function Class:updateOutput(tuple)
   local input, lengths = unpack(tuple)
   if input:dim() ~= 3 then
