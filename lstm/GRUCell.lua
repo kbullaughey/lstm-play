@@ -23,17 +23,14 @@ local GRUCell = function(prev_h, x, inputSize, hiddenSize, dropRate)
     return mod
   end
 
-  -- Since both the update gate and reset gate involve mapping both x and prev-h, we
-  -- can do these operations together.
-  local xhm_squashed = nn.Sigmoid()(nn.CAddTable()({
-    Linear(inputSize,hiddenSize*2)(x),
-    Linear(hiddenSize,hiddenSize*2)(prev_h)
+  local z_gate = nn.Sigmoid()(nn.CAddTable()({
+    Linear(inputSize,hiddenSize)(x),
+    Linear(hiddenSize,hiddenSize)(prev_h)
   }))
-
-  -- Compute the update gate (z) and the reset gate (r).
-  local zr_gates = nn.SplitTable(2)(nn.Reshape(2,hiddenSize)(xhm_squashed))
-  local z_gate = nn.SelectTable(1)(zr_gates)
-  local r_gate = nn.SelectTable(2)(zr_gates)
+  local r_gate = nn.Sigmoid()(nn.CAddTable()({
+    Linear(inputSize,hiddenSize)(x),
+    Linear(hiddenSize,hiddenSize)(prev_h)
+  }))
 
   -- For the candidate activation we need to use x mapped once more into hidden
   -- space, which is added to the mapped result of resetting prev_h.
