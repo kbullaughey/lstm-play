@@ -91,20 +91,15 @@ function makeDataset(x, y, lengths, hiddenSize, batchSize, maxLength)
     local start = (i-1)*batchSize + 1
     local inputs = torch.reshape(x:narrow(1,start,batchSize), batchSize, maxLength, 1)
     local batchLengths = lengths:narrow(1,start,batchSize)
-
-    local targets = torch.reshape(y:narrow(1,start,batchSize), batchSize, maxLength, 1)
-    -- Encode lengths using a one-hot per row strategy
-    local lengthsOneHot = torch.zeros(batchSize,maxLength)
+    local targets = y:narrow(1,start,batchSize):select(2,1)
     -- Provide a matrix that masks unused portions of the outputs. This will be
-    -- ones over the length of the sequence and zeros afterwards. 
+    -- ones over the length of the sequence and zeros afterwards.
     local validSequence = torch.zeros(batchSize,maxLength)
     for b=1,batchSize do
-      local len = batchLengths[b]
-      lengthsOneHot[b][len] = 1
-      validSequence[b]:narrow(1,1,len):fill(1)
+      validSequence[b]:narrow(1,1,batchLengths[b]):fill(1)
     end
     -- Add a zero matrix to every example for the initial h state
-    dataset[i] = {{inputs,lengthsOneHot,batchLengths,validSequence}, targets}
+    dataset[i] = {{inputs,batchLengths,validSequence}, targets}
   end
   return dataset
 end
@@ -192,34 +187,33 @@ trainingDataset = makeDataset(x_train_n, y_train, lengths_train, params.hidden,
 testingDataset = makeDataset(x_test_n, y_test, lengths_test, params.hidden,
   params.batch, maxLength)
 
--- chainIn will be a table like {inputSeq,lengthsOneHot,validSeq}. We'll use validSeq
+-- chainIn will be a table like {inputSeq,batchLengths,validSeq}. We'll use validSeq
 -- this to constrain predictions to the portions of the sequence we care about in
 -- each batch member, given they will have different lengths.
 chainIn = nn.Identity()()
 inputSeq = nn.SelectTable(1)(chainIn)
-lengthsOneHot = nn.SelectTable(2)(chainIn)
-batchLengths = nn.SelectTable(3)(chainIn)
-validSeq = nn.SelectTable(4)(chainIn)
+batchLengths = nn.SelectTable(2)(chainIn)
+validSeq = nn.SelectTable(3)(chainIn)
 reversedInputSeq = lstm.ReverseSequence(2)({inputSeq,batchLengths})
 chainModBackward = lstm.MemoryChainDirect(1, {params.hidden}, maxLength)
 chainModForward = lstm.MemoryChainDirect(1, {params.hidden}, maxLength)
 -- Each chain will output tensor of dims BxLxH
-chainOutBackward = chainModBackward({reversedInputSeq, lengthsOneHot})
-chainOutForward = chainModForward({inputSeq, lengthsOneHot})
+chainOutBackward = chainModBackward({reversedInputSeq, batchLengths})
+chainOutForward = chainModForward({inputSeq, batchLengths})
 chainOutBackwardRereversed = lstm.ReverseSequence(2)({chainOutBackward,batchLengths})
 
--- Add forward and reverse
-chainOut = nn.CAddTable()({chainOutBackwardRereversed,chainOutForward})
+-- Join forward and reverse, resulting in BxLx2H
+chainOut = nn.JoinTable(3)({chainOutBackwardRereversed,chainOutForward})
+validSeqRep = nn.Replicate(2*params.hidden, 3, 2)(validSeq)
+chainOutConstrained = nn.CMulTable()({chainOut,validSeqRep})
 
 -- In order to feed these through the linear map for prediction, we have to
 -- reshape so that we have a 2D tensor instead of 3D. Later we reshape it
 -- back.
-chainOutReshaped = nn.Reshape(params.batch*maxLength, params.hidden)(chainOut)
-predicted = nn.Linear(params.hidden,1)(chainOutReshaped)
-predictedReshaped = nn.Reshape(params.batch, maxLength, 1)(predicted)
-predictedConstrained = nn.CMulTable()({predictedReshaped,validSeq})
+chainOutReshaped = nn.Reshape(params.batch, 2*params.hidden*maxLength)(chainOutConstrained)
+predicted = nn.Linear(2*params.hidden*maxLength,1)(chainOutReshaped)
 --predictedConstrained = predictedReshaped
-net = nn.gModule({chainIn},{predictedConstrained})
+net = nn.gModule({chainIn},{predicted})
 
 -- Need to reenable sharing after getParameters(), which broke my sharing.
 net.par, net.gradPar = net:getParameters()
@@ -229,88 +223,10 @@ chainModBackward:setupSharing()
 -- Use least-squares loss function and SGD.
 criterion = nn.MSECriterion()
 
---net.par:uniform(-0.02, 0.02)
---
---for i=1,4 do
---  print("1 and 2 for " .. i)
---  print(trainingDataset[1][1][i]:sum() + trainingDataset[2][1][i]:sum())
---  print("3 and 4 for " .. i)
---  print(trainingDataset[3][1][i]:sum() + trainingDataset[4][1][i]:sum())
---end
---print("1 and 2 for y")
---print(trainingDataset[1][2]:sum() + trainingDataset[2][2]:sum())
---print("1 and 4 for y")
---print(trainingDataset[3][2]:sum() + trainingDataset[4][2]:sum())
---
----- Make training dataset 3 and 4 chimeras of 1 and 2
---for i=1,4 do
---  trainingDataset[3][1][i]:narrow(1,1,8):copy(trainingDataset[1][1][i]:narrow(1,1,8))
---  trainingDataset[3][1][i]:narrow(1,9,8):copy(trainingDataset[2][1][i]:narrow(1,9,8))
---  trainingDataset[4][1][i]:narrow(1,1,8):copy(trainingDataset[2][1][i]:narrow(1,1,8))
---  trainingDataset[4][1][i]:narrow(1,9,8):copy(trainingDataset[1][1][i]:narrow(1,9,8))
---end
---trainingDataset[3][2]:narrow(1,1,8):copy(trainingDataset[1][2]:narrow(1,1,8))
---trainingDataset[3][2]:narrow(1,9,8):copy(trainingDataset[2][2]:narrow(1,9,8))
---trainingDataset[4][2]:narrow(1,1,8):copy(trainingDataset[2][2]:narrow(1,1,8))
---trainingDataset[4][2]:narrow(1,9,8):copy(trainingDataset[1][2]:narrow(1,9,8))
---
---for i=1,4 do
---  print("1 and 2 for " .. i)
---  print(trainingDataset[1][1][i]:sum() + trainingDataset[2][1][i]:sum())
---  print("3 and 4 for " .. i)
---  print(trainingDataset[3][1][i]:sum() + trainingDataset[4][1][i]:sum())
---end
---print("1 and 2 for y")
---print(trainingDataset[1][2]:sum() + trainingDataset[2][2]:sum())
---print("1 and 4 for y")
---print(trainingDataset[3][2]:sum() + trainingDataset[4][2]:sum())
---
---net:zeroGradParameters()
---for i=1,2 do
---  net:forward(trainingDataset[i][1])
---  criterion:forward(net.output, trainingDataset[i][2])
---  criterion:backward(net.output, trainingDataset[i][2])
---  net:backward(trainingDataset[i][1], criterion.gradInput)
---end
---print("gradSum: " .. net.gradPar:sum())
---
---net:zeroGradParameters()
---for i=3,4 do
---  net:forward(trainingDataset[i][1])
---  criterion:forward(net.output, trainingDataset[i][2])
---  criterion:backward(net.output, trainingDataset[i][2])
---  net:backward(trainingDataset[i][1], criterion.gradInput)
---end
---print("gradSum: " .. net.gradPar:sum())
---
---os.exit(0)
-
---chainModForward.debugHook = function(t)
---  print("forward t: " .. t .. ", gradPar:sum(): " .. net.gradPar:sum())
---end
---chainModBackward.debugHook = function(t)
---  print("backward t: " .. t .. ", gradPar:sum(): " .. net.gradPar:sum())
---end
---os.exit(0)
-
 if params.mode == 'train' then
   trainer = lstmTrainer(net, criterion)
   trainer.maxIteration = params.iter
   trainer.learningRate = params.rate
---  function trainer:exampleHook(ex, iter, err)
---    print("err: " .. err)
---    print("par norm: " .. net.par:norm())
---    print("gradPar norm: " .. net.gradPar:norm())
---    local g, u
---    _, g = chainModForward.lstms[1][1]:parameters()
---    local views = tablex.map(function(z) return z:view(16,-1) end, g)
---    u = nn.JoinTable(2):forward(views):pow(2):sum()
---    print("forward u: " .. u)
---    _, g = chainModBackward.lstms[1][1]:parameters()
---    views = tablex.map(function(z) return z:view(16,-1) end, g)
---    u = nn.JoinTable(2):forward(views):pow(2):sum()
---    print("backward u: " .. u)
---  end
   function trainer:hookIteration(iter, err)
     print("[" .. iter .. "] current error = " .. err)
     if iter % 2 == 0 then
@@ -324,7 +240,7 @@ if params.mode == 'train' then
 
   -- Save the trained model
   torch.save(params.trained, {net=net})
-
+  
   -- Output predictions along a grid so we can see how well it learned the function. We'll
   -- generate inputs without noise so we can see how well it does in the absence of noise,
   -- which will give us a sense of whether it's learned the true underlying function.
@@ -347,7 +263,7 @@ if params.mode == 'train' then
 
   -- Use penlight to write the data
   pldata = require 'pl.data'
-  pred_d = pldata.new(allPredictions:view(-1,4):totable())
+  pred_d = pldata.new(allPredictions:totable())
   pred_d:write(params.grid)
 
 elseif params.mode == 'check' then
