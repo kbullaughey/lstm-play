@@ -64,9 +64,13 @@ end
 
 function suite.ReverseSequenceForwardNonBatchVector()
   local x = torch.Tensor({1,2,3,4})
-  local xRev = lstm.ReverseSequence(1):forward({x})
-  local expected = torch.Tensor({4,3,2,1})
-  tester:eq(xRev, expected, 0, "reversed sequences, vector")
+  -- Check that it works either with a tensor or a table containing a tensor.
+  local tries = {{x}, x}
+  for _, try in ipairs(tries) do
+    local xRev = lstm.ReverseSequence(1):forward(try)
+    local expected = torch.Tensor({4,3,2,1})
+    tester:eq(xRev, expected, 0, "reversed sequences, vector")
+  end
 end
 
 function suite.ReverseSequenceBackwardNonBatchVector()
@@ -75,6 +79,14 @@ function suite.ReverseSequenceBackwardNonBatchVector()
   local xRev = mod:forward({x})
   local xRecovered = mod:backward({x}, xRev)
   tester:eq(x, xRecovered[1], 0, "gradient got reversed, vector")
+end
+
+function suite.ReverseSequenceBackwardNonBatchVectorNaked()
+  local x = torch.Tensor({1,2,3,4})
+  local mod = lstm.ReverseSequence(1)
+  local xRev = mod:forward(x)
+  local xRecovered = mod:backward(x, xRev)
+  tester:eq(x, xRecovered, 0, "gradient got reversed, vector")
 end
 
 function suite.MemoryChainDirectForwardBatch()
@@ -98,6 +110,18 @@ function suite.MemoryChainDirectForwardNonBatch()
   local chain = lstm.MemoryChainDirect(F,{H},maxLen)
   local x = torch.rand(maxLen,F)
   local out = chain:forward({x})
+  local expected = torch.LongTensor({maxLen,H})
+  local outSize = torch.LongTensor(out:size():totable())
+  tester:eq(outSize, expected, 0, "forward output has correct size, non-batch")
+end
+
+function suite.MemoryChainDirectForwardNonBatchNaked()
+  local maxLen = 4
+  local H = 3
+  local F = 2
+  local chain = lstm.MemoryChainDirect(F,{H},maxLen)
+  local x = torch.rand(maxLen,F)
+  local out = chain:forward(x)
   local expected = torch.LongTensor({maxLen,H})
   local outSize = torch.LongTensor(out:size():totable())
   tester:eq(outSize, expected, 0, "forward output has correct size, non-batch")
@@ -132,6 +156,21 @@ function suite.MemoryChainDirectForwardBackwardNonBatch()
   local gradAbove = torch.rand(maxLen,H)
   local gradBelow = chain:backward({x}, gradAbove)
   local outSizeInput = torch.LongTensor(gradBelow[1]:size():totable())
+  local expOutSizeInput = torch.LongTensor(x:size():totable())
+  tester:eq(outSizeInput, expOutSizeInput, 0, "grad wrt inputs has correct size, non-batch")
+end
+
+function suite.MemoryChainDirectForwardBackwardNonBatchNaked()
+  local maxLen = 4
+  local H = 3
+  local F = 2
+  local chain = lstm.MemoryChainDirect(F,{H},maxLen)
+  local x = torch.rand(maxLen,F)
+  chain:forward(x)
+  local gradAbove = torch.rand(maxLen,H)
+  local gradBelow = chain:backward(x, gradAbove)
+  tester:eq(torch.isTensor(gradBelow), true)
+  local outSizeInput = torch.LongTensor(gradBelow:size():totable())
   local expOutSizeInput = torch.LongTensor(x:size():totable())
   tester:eq(outSizeInput, expOutSizeInput, 0, "grad wrt inputs has correct size, non-batch")
 end

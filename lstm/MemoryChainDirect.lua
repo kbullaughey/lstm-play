@@ -12,6 +12,9 @@ function MemoryChainDirect:__init(inputSize, hiddenSizes, maxLength)
     error("MemoryChainDirect only works with exactly one layer")
   end
   parent.__init(self, inputSize, hiddenSizes, maxLength)
+  -- Save references to these so that if using naked we don't need to allocate new ones.
+  self.scratchA = self.gradInput[1]
+  self.scratchB = self.gradInput[2]
 end
 
 -- In batch mode:
@@ -23,11 +26,16 @@ end
 --
 -- In single-sequence mode:
 --
---   Receives a table containing a single tensor, input that has shape LxF.
+--   Receives a table containing a single tensor or just the tensor, input that has shape LxF.
 --   Outputs a tensor of shape LxH.
 --
 function MemoryChainDirect:updateOutput(tuple)
-  local input, lengths = unpack(tuple)
+  local input, lengths
+  if torch.isTensor(tuple) then
+    input = tuple
+  else
+    input, lengths = unpack(tuple)
+  end
   local batchSize
   local longestExample
   local h, c
@@ -73,7 +81,20 @@ end
 -- and H is hidden state size. It contains the gradient of the objective function
 -- wrt outputs from the LSTM memory cell at each position in the sequence.
 function MemoryChainDirect:updateGradInput(tuple, upstreamGradOutput)
-  local input, lengths = unpack(tuple)
+  local input, lengths
+  local gradWrtInputs = self.scratchA
+  local gradWrtLengths
+  if torch.isTensor(tuple) then
+    input = tuple
+    if not torch.isTensor(self.gradInput) then
+      self.gradInput = self.scratchA
+    end
+  else
+    input, lengths = unpack(tuple)
+    if not torch.type(self.gradInput) == "table" then
+      self.gradInput = {self.scratchA, self.scratchB}
+    end
+  end
   local len, batchSize
   local timeAxis = input:dim() - 1
   local h,c
@@ -82,8 +103,9 @@ function MemoryChainDirect:updateGradInput(tuple, upstreamGradOutput)
     -- Batch mode
     len = input:size(timeAxis)
     batchSize = input:size(1)
-    self.gradInput[1]:resize(batchSize, len, self.inputSize):zero()
-    self.gradInput[2]:resizeAs(lengths):zero()
+    gradWrtInputs:resize(batchSize, len, self.inputSize):zero()
+    gradWrtLengths = self.scratchB
+    gradWrtLengths:resizeAs(lengths):zero()
     -- Memory we'll use for the upstream messages of each LSTM memory cell.
     -- Since each memory cell outputs an h and c, we need gradients of these.
     self.h:resize(batchSize, layerSize)
@@ -93,7 +115,7 @@ function MemoryChainDirect:updateGradInput(tuple, upstreamGradOutput)
   elseif timeAxis == 1 then
     -- Non-batch mode
     len = input:size(timeAxis)
-    self.gradInput[1]:resize(len, self.inputSize):zero()
+    gradWrtInputs:resize(len, self.inputSize):zero()
     -- Memory we'll use for the upstream messages of each LSTM memory cell.
     -- Since each memory cell outputs an h and c, we need gradients of these.
     self.h:resize(layerSize)
@@ -159,7 +181,7 @@ function MemoryChainDirect:updateGradInput(tuple, upstreamGradOutput)
       c = self.lstms[1][t-1].output[2]
     end
     self.lstms[1][t]:backward({h, c, x}, gradOutput)
-    self.gradInput[1]:select(timeAxis,t):copy(self.lstms[1][t].gradInput[3])
+    gradWrtInputs:select(timeAxis,t):copy(self.lstms[1][t].gradInput[3])
   end
   return self.gradInput
 end

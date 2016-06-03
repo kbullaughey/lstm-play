@@ -29,7 +29,9 @@ function ReverseSequence:__init(timeDimension)
     error("Invalid timeDimension: " .. timeDimension)
   end
   self.timeDimension = timeDimension
-  self.gradInput = {lstm.Tensor(), lstm.Tensor()}
+  self.scratchA = torch.Tensor()
+  self.scratchB = torch.Tensor()
+  self.gradInput = {self.scratchA, self.scratchB}
 end
 
 -- This module has no parameters.
@@ -38,7 +40,12 @@ function ReverseSequence:parameters()
 end
 
 function ReverseSequence:updateOutput(tuple)
-  local inputs, lengths = unpack(tuple)
+  local inputs, lengths
+  if torch.isTensor(tuple) then
+    inputs = tuple
+  else
+    inputs, lengths = unpack(tuple)
+  end
   local batchSize, maxTime
   if lengths == nil then
     -- Non-batch mode
@@ -68,19 +75,33 @@ function ReverseSequence:updateOutput(tuple)
 end
 
 function ReverseSequence:updateGradInput(tuple, upstreamGradOutput)
-  local inputs, lengths = unpack(tuple)
+  local inputs, lengths
+  local gradWrtInputs = self.scratchA
+  local gradWrtLengths
+  if torch.isTensor(tuple) then
+    inputs = tuple
+    if not torch.isTensor(self.gradInput) then
+      self.gradInput = self.scratchA
+    end
+  else
+    inputs, lengths = unpack(tuple)
+    if not torch.type(self.gradInput) == "table" then
+      self.gradInput = {self.scratchA, self.scratchB}
+    end
+  end
   if lengths ~= nil then
     -- Batch mode
     batchSize = inputs:size(1)
+    gradWrtLengths = self.scratchB
   end
   -- Since reversing is its own opposite, I can just reverse the gradient to get the
   -- gradient of the outputs wrt inputs.
   local gradTuple = {upstreamGradOutput, lengths}
   local reverser = lstm.localize(lstm.ReverseSequence(self.timeDimension))
   local reversedGrad = reverser:forward(gradTuple)
-  self.gradInput[1]:resizeAs(inputs):zero():copy(reversedGrad)
+  gradWrtInputs:resizeAs(inputs):zero():copy(reversedGrad)
   if lengths ~= nil then
-    self.gradInput[2]:resizeAs(lengths):zero()
+    gradWrtLengths:resizeAs(lengths):zero()
   end
   return self.gradInput
 end
