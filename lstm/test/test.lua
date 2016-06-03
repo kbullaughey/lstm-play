@@ -30,7 +30,7 @@ end
 function suite.ReverseSequenceForwardBatch()
   local x = torch.Tensor({{1,2,3,0},{4,5,6,7}})
   local lengths = torch.Tensor({3,4})
-  local xRev = lstm.ReverseSequence(2):forward({x, lengths})
+  local xRev = lstm.ReverseSequence(1):forward({x, lengths})
   local expected = torch.Tensor({{3,2,1,0},{7,6,5,4}})
   tester:eq(xRev, expected, 0, "reversed sequences, batch")
 end
@@ -38,9 +38,10 @@ end
 function suite.ReverseSequenceBackwardBatch()
   local x = torch.Tensor({{1,2,3,0},{4,5,6,7}})
   local lengths = torch.Tensor({3,4})
-  local xRev = lstm.ReverseSequence(2):forward({x, lengths})
+  local mod = lstm.ReverseSequence(1)
+  local xRev = mod:forward({x, lengths})
   -- Pretend xRev is the gradient. In propagating back it will get reversed.
-  local xRecovered = lstm.ReverseSequence(2):backward({x, lengths}, xRev)
+  local xRecovered = mod:backward({x, lengths}, xRev)
   tester:eq(x, xRecovered[1], 0, "gradient gets reversed, batch")
   tester:eq(torch.zeros(2), xRecovered[2], 0, "grad wrt lengths is zero")
 end
@@ -54,8 +55,9 @@ end
 
 function suite.ReverseSequenceBackwardNonBatchVector()
   local x = torch.Tensor({1,2,3,4})
-  local xRev = lstm.ReverseSequence(1):forward({x})
-  local xRecovered = lstm.ReverseSequence(1):backward({x}, xRev)
+  local mod = lstm.ReverseSequence(1)
+  local xRev = mod:forward({x})
+  local xRecovered = mod:backward({x}, xRev)
   tester:eq(x, xRecovered[1], 0, "gradient got reversed, vector")
 end
 

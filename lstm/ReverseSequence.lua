@@ -7,15 +7,19 @@ local ReverseSequence, parent = torch.class('lstm.ReverseSequence', 'nn.Module')
 -- which may vary.
 --
 -- It is configured using an integer specifying which dimsion is the time
--- dimension.
+-- dimension. This is the time axis after already removing the batch dimension,
+-- Thus if the shape is BxTxK then it should be ReverseSequence(1) but if
+-- the shape is BxKxT then it should be ReverseSequence(2). In non-batch mode,
+-- if the shape is TxK then it should be ReverseSequence(1), but if it's
+-- KxT then it should be ReverseSequence(2).
 --
 -- In batch mode:
 --
---    lstm.ReverseSequence(2)({inputs,lengths})
+--    lstm.ReverseSequence(timeDim)({inputs,lengths})
 --
 -- In non-batch mode:
 --
---    lstm.ReverseSequence(2)({inputs})
+--    lstm.ReverseSequence(timeDim)({inputs})
 --
 -- Components in the inputs tensor that are after the end of the sequence
 -- are zeroed out (they should be zero to begin with).
@@ -35,13 +39,16 @@ end
 
 function ReverseSequence:updateOutput(tuple)
   local inputs, lengths = unpack(tuple)
-  local batchSize
-  if lengths ~= nil then
+  local batchSize, maxTime
+  if lengths == nil then
+    -- Non-batch mode
+    maxTime = inputs:size(self.timeDimension)
+  else
     -- Batch mode
     batchSize = inputs:size(1)
+    maxTime = inputs:size(self.timeDimension+1)
   end
 
-  local maxTime = inputs:size(self.timeDimension)
   local reversedIndices = torch.range(maxTime, 1, -1):long()
   self.output:resizeAs(inputs):zero()
   -- After picking a batch member, our timeDimension will be one less.
@@ -50,7 +57,7 @@ function ReverseSequence:updateOutput(tuple)
   else
     for b=1,batchSize do
       local len = lengths[b]
-      local tDim = self.timeDimension - 1
+      local tDim = self.timeDimension
       -- this will be len, len-1, ..., 1
       local trimmedReversedIndices = reversedIndices:narrow(1, maxTime-len+1, len)
       local seqReversed = inputs[b]:narrow(tDim, 1, len):index(tDim, trimmedReversedIndices)
