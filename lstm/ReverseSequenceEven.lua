@@ -6,6 +6,11 @@ local ReverseSequenceEven, parent = torch.class('lstm.ReverseSequenceEven', 'nn.
 --
 --    lstm.ReverseSequenceEven(timeDim)(inputs)
 --
+-- The timeDim skips the first dimension, so if the shape is BxTxK then timeDim
+-- should be 1 because the time dimension is the first dimenion after the batch
+-- dimenion. This parameterization was chosen to match ReverseSequence(), which
+-- works in either batch or non-batch mode.
+--
 -- This module is only designed to work with mini-batch (not individual examples). For
 -- a single sequence, ReverseSequence() can be used.
 function ReverseSequenceEven:__init(timeDimension, forwardOnly)
