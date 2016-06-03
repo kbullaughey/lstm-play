@@ -201,13 +201,13 @@ inputSeq = nn.SelectTable(1)(chainIn)
 lengthsOneHot = nn.SelectTable(2)(chainIn)
 batchLengths = nn.SelectTable(3)(chainIn)
 validSeq = nn.SelectTable(4)(chainIn)
-reversedInputSeq = lstm.ReverseSequence(2)({inputSeq,batchLengths})
+reversedInputSeq = lstm.ReverseSequence(1)({inputSeq,batchLengths})
 chainModForward = lstm.MemoryChainDirect(1, {params.hidden}, maxLength)
 chainModBackward = lstm.MemoryChainDirect(1, {params.hidden}, maxLength)
 -- Each chain will output tensor of dims BxLxH
 chainOutForward = chainModForward({inputSeq, lengthsOneHot})
 chainOutBackward = chainModBackward({reversedInputSeq, lengthsOneHot})
-chainOutBackwardRereversed = lstm.ReverseSequence(2)({chainOutBackward,batchLengths})
+chainOutBackwardRereversed = lstm.ReverseSequence(1)({chainOutBackward,batchLengths})
 
 -- Add forward and reverse
 chainOut = nn.CAddTable()({chainOutForward, chainOutBackwardRereversed})

@@ -3,7 +3,7 @@
 check = require './check_gradients'
 require 'lstm'
 
-mod = lstm.ReverseSequence(2)
+mod = lstm.ReverseSequence(1)
 x = torch.rand(4,3)
 y = torch.rand(4,3)
 x[1][3] = 0

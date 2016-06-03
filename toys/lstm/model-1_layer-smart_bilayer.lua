@@ -197,15 +197,15 @@ chainIn = nn.Identity()()
 inputSeq = nn.SelectTable(1)(chainIn)
 batchLengths = nn.SelectTable(2)(chainIn)
 validSeq = nn.SelectTable(3)(chainIn)
-reversedInputSeq = lstm.ReverseSequence(2)({inputSeq,batchLengths})
+reversedInputSeq = lstm.ReverseSequence(1)({inputSeq,batchLengths})
 chainModForward = lstm.MemoryChainDirect(1, {params.hidden}, maxLength)
 chainOutForward = chainModForward({inputSeq, batchLengths})
 -- The backward chain will take output from the forward chain and the input
-chainOutForwardReversed = lstm.ReverseSequence(2)({chainOutForward,batchLengths})
+chainOutForwardReversed = lstm.ReverseSequence(1)({chainOutForward,batchLengths})
 backwardWithInput = nn.JoinTable(3)({reversedInputSeq, chainOutForwardReversed})
 chainModBackward = lstm.MemoryChainDirect(1+params.hidden, {params.hidden}, maxLength)
 chainOutBackward = chainModBackward({backwardWithInput, batchLengths})
-chainOut = lstm.ReverseSequence(2)({chainOutBackward,batchLengths})
+chainOut = lstm.ReverseSequence(1)({chainOutBackward,batchLengths})
 
 -- In order to feed these through the linear map for prediction, we have to
 -- reshape so that we have a 2D tensor instead of 3D. Later we reshape it
