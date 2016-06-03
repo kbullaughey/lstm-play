@@ -4,9 +4,10 @@ local ReverseSequenceEven, parent = torch.class('lstm.ReverseSequenceEven', 'nn.
 -- the L direction. This is appropriate for batches of sequences that are
 -- all the same length.
 --
---    lstm.ReverseSequenceEven(2)(inputs)
+--    lstm.ReverseSequenceEven(timeDim)(inputs)
 --
--- This module is only designed to work with mini-batch (not individual examples).
+-- This module is only designed to work with mini-batch (not individual examples). For
+-- a single sequence, ReverseSequence() can be used.
 function ReverseSequenceEven:__init(timeDimension, forwardOnly)
   parent.__init(self)
   if timeDimension == nil or timeDimension <= 0 then
@@ -24,11 +25,11 @@ end
 
 function ReverseSequenceEven:reverse(dest, src)
   dest:resizeAs(src)
-  local timeSteps = src:size(self.timeDimension)
+  local timeSteps = src:size(self.timeDimension+1)
   if self.indices:dim() ~= 1 or self.indices:size(1) ~= timeSteps then
     self.indices:resize(timeSteps):copy(torch.range(timeSteps, 1, -1))
   end
-  dest:indexCopy(self.timeDimension, self.indices, src)
+  dest:indexCopy(self.timeDimension+1, self.indices, src)
   return dest
 end
 

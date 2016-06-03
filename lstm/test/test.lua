@@ -46,6 +46,22 @@ function suite.ReverseSequenceBackwardBatch()
   tester:eq(torch.zeros(2), xRecovered[2], 0, "grad wrt lengths is zero")
 end
 
+function suite.ReverseSequenceEvenForwardBatch()
+  local x = torch.Tensor({{1,2,3,4},{4,5,6,7}})
+  local xRev = lstm.ReverseSequenceEven(1):forward(x)
+  local expected = torch.Tensor({{4,3,2,1},{7,6,5,4}})
+  tester:eq(xRev, expected, 0, "reversed sequences, batch")
+end
+
+function suite.ReverseSequenceEvenBackwardBatch()
+  local x = torch.Tensor({{1,2,3,4},{4,5,6,7}})
+  local mod = lstm.ReverseSequenceEven(1)
+  local xRev = mod:forward(x)
+  -- Pretend xRev is the gradient. In propagating back it will get reversed.
+  local xRecovered = mod:backward(x, xRev)
+  tester:eq(x, xRecovered, 0, "gradient gets reversed, batch")
+end
+
 function suite.ReverseSequenceForwardNonBatchVector()
   local x = torch.Tensor({1,2,3,4})
   local xRev = lstm.ReverseSequence(1):forward({x})
