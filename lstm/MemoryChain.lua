@@ -12,7 +12,7 @@ local MemoryChain, parent = torch.class('lstm.MemoryChain', 'nn.Module')
 --      expect to see. This is necessary because we pre-create all the
 --      memory cells and use the same ones for all sequences.
 function MemoryChain:__init(inputSize, hiddenSizes, maxLength)
-  print("MemoryChain(" .. inputSize .. ',<' .. stringx.join(',',hiddenSizes) ..
+  lstm.debugger.info("MemoryChain(" .. inputSize .. ',<' .. stringx.join(',',hiddenSizes) ..
     '>,' .. maxLength .. ')')
   parent.__init(self)
 

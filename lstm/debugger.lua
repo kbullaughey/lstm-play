@@ -37,6 +37,12 @@ function debugger:describeTable(x)
   return stringx.join("\n", lines)
 end
 
+function debugger:info(str)
+  if self.enabled then
+    print(str)
+  end
+end
+
 function debugger:describeNumber(x)
   return "scalar: " .. x
 end

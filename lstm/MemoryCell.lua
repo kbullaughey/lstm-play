@@ -1,13 +1,23 @@
 -- Make an LSTM graph node.
 -- 
--- For a batch size, B, inputSize, P, and hiddenSize, Q, the sizes should
+-- The MemoryCell can either work in batch mode (timeAxis=2) or single sequence
+-- mode (timeAxis=1).
+--
+-- In batch mode with batchSize, B, inputSize, F, and hiddenSize, H, the sizes should
 -- be as follows:
 --
---    x: BxP
---    prev_h: BxQ
---    prev_c: BxQ
+--    x: BxF
+--    prev_h: BxH
+--    prev_c: BxH
 --
--- The first three parameters are nngraph.Node instances, followed by two integers.
+-- In non-batch mode, we have:
+--
+--    x: vector length F
+--    h: vector length H
+--    c: vector length H
+--
+-- The first three parameters are nngraph.Node instances, followed by two
+-- integers and a boolean.
 --
 -- Returns two values:
 --  1. The table containing {h, c} which are nngraph.Node instance.
@@ -34,7 +44,8 @@ local MemoryCell = function(prev_h, prev_c, x, inputSize, hiddenSize)
   })
 
   -- Split the four xh mappings appart.
-  local xhm_split = nn.SplitTable(2)(nn.Reshape(4,hiddenSize)(xhm))
+  -- In batch mode, the reshaped tensor will be Bx4xH, in non-batch mode, 4xH.
+  local xhm_split = nn.SplitTable(-2)(nn.Reshape(4,hiddenSize)(xhm))
 
   -- Input gate. Equation (7)
   local i_gate = nn.Sigmoid()(nn.CAddTable()({

@@ -14,36 +14,57 @@ function MemoryChainDirect:__init(inputSize, hiddenSizes, maxLength)
   parent.__init(self, inputSize, hiddenSizes, maxLength)
 end
 
--- Receives a table containing two Tensors: input and a vector of lengths, as not all
--- sequences will span the full length dimension of the tensor.
--- If input is 3D then the first dimension is batch, otherwise the first dim
--- is the sequence. Last dimension is features.
--- Output is size BxLxH
+-- In batch mode:
+--
+--   Receives a table containing two Tensors: input and a vector of lengths, as not all
+--   sequences will span the full length dimension of the tensor.
+--   The input is 3D with shape BxLxF corresponding to batch, time-axis, and features.
+--   Output is size BxLxH, where H is the hidden size.
+--
+-- In single-sequence mode:
+--
+--   Receives a table containing a single tensor, input that has shape LxF.
+--   Outputs a tensor of shape LxH.
+--
 function MemoryChainDirect:updateOutput(tuple)
   local input, lengths = unpack(tuple)
-  if input:dim() ~= 3 then
-    error("expecting a 3D input")
-  end
-  local batchSize = input:size(1)
-  local longestExample = input:size(2)
-
-  -- Storage for output
+  local batchSize
+  local longestExample
+  local h, c
   local layerSize = self.hiddenSizes[1]
-  self.output:resize(batchSize, longestExample, layerSize)
-
-  -- The first memory cell will receive zeros.
-  local h = self.h:resize(batchSize,layerSize):zero()
-  local c = self.c:resize(batchSize,layerSize):zero()
+  local timeAxis = input:dim() - 1
+  if timeAxis == 2 then
+    -- Batch mode
+    if lengths == nil then
+      error("In batch mode must provide lengths")
+    end
+    batchSize = input:size(1)
+    longestExample = input:size(2)
+    self.output:resize(batchSize, longestExample, layerSize)
+    h = self.h:resize(batchSize,layerSize):zero()
+    c = self.c:resize(batchSize,layerSize):zero()
+  elseif timeAxis == 1 then
+    -- Non-batch mode
+    if lengths ~= nil then
+      error("In non-batch mode no need to provide lengths")
+    end
+    longestExample = input:size(1)
+    self.output:resize(longestExample, layerSize)
+    h = self.h:resize(layerSize):zero()
+    c = self.c:resize(layerSize):zero()
+  else
+    error("Expecting 2D or 3D tensor")
+  end
 
   -- Iterate over memory cells feeding each successive tuple (h,c) into the next
   -- LSTM memory cell.
   for t=1,longestExample do
-    local x = input:select(2, t)
+    local x = input:select(timeAxis, t)
     h, c = unpack(self.lstms[1][t]:forward({h, c, x}))
     -- At present we copy all timesteps for all batch members. It's up to the
     -- prediction layer to only use the ones that are relevant for each batch
     -- memeber.
-    self.output:select(2,t):copy(h)
+    self.output:select(timeAxis,t):copy(h)
   end
   return self.output
 end
@@ -53,28 +74,36 @@ end
 -- wrt outputs from the LSTM memory cell at each position in the sequence.
 function MemoryChainDirect:updateGradInput(tuple, upstreamGradOutput)
   local input, lengths = unpack(tuple)
-  local batchSize = input:size(1)
-  local len = input:size(2)
-  self.gradInput[1]:resize(batchSize, len, self.inputSize):zero()
-  self.gradInput[2]:resizeAs(lengths):zero()
-
+  local len, batchSize
+  local timeAxis = input:dim() - 1
   local h,c
-  if input:dim() ~= 3 then
-    error("MemoryChainDirect:updageGradInput is expecting a 3D input tensor")
+  local layerSize = self.hiddenSizes[1]
+  if timeAxis == 2 then
+    -- Batch mode
+    len = input:size(timeAxis)
+    batchSize = input:size(1)
+    self.gradInput[1]:resize(batchSize, len, self.inputSize):zero()
+    self.gradInput[2]:resizeAs(lengths):zero()
+    -- Memory we'll use for the upstream messages of each LSTM memory cell.
+    -- Since each memory cell outputs an h and c, we need gradients of these.
+    self.h:resize(batchSize, layerSize)
+    self.c:resize(batchSize, layerSize)
+    self.gradOutputScratch.h:resize(batchSize,layerSize)
+    self.gradOutputScratch.c:resize(batchSize,layerSize)
+  elseif timeAxis == 1 then
+    -- Non-batch mode
+    len = input:size(timeAxis)
+    self.gradInput[1]:resize(len, self.inputSize):zero()
+    -- Memory we'll use for the upstream messages of each LSTM memory cell.
+    -- Since each memory cell outputs an h and c, we need gradients of these.
+    self.h:resize(layerSize)
+    self.c:resize(layerSize)
+    self.gradOutputScratch.h:resize(layerSize)
+    self.gradOutputScratch.c:resize(layerSize)
+  else
+    error("Expecting either a 2D or 3D tensor")
   end
 
-  -- Because each batch member has a sequence of a different length less than
-  -- or equal to len, we need to have some way to propagate errors starting
-  -- at the correct level. 
-
-  local layerSize = self.hiddenSizes[1]
-
-  -- Memory we'll use for the upstream messages of each LSTM memory cell.
-  -- Since each memory cell outputs an h and c, we need gradients of these.
-  self.h:resize(batchSize, layerSize)
-  self.c:resize(batchSize, layerSize)
-  self.gradOutputScratch.h:resize(batchSize,layerSize)
-  self.gradOutputScratch.c:resize(batchSize,layerSize)
   local gradOutput = {
     self.gradOutputScratch.h, 
     self.gradOutputScratch.c 
@@ -86,30 +115,42 @@ function MemoryChainDirect:updateGradInput(tuple, upstreamGradOutput)
     -- If we're in the top layer, we'll get some messages from upstreamGradOutput,
     -- otherwise we'll get the messages from the lstm above. In either case, above
     -- will be BxH.
-    local above = upstreamGradOutput:select(2,t)
+    local above = upstreamGradOutput:select(timeAxis,t)
     -- Only incorporate messages from above if batch member is at least t long.
-    for b=1,batchSize do
-      if t <= lengths[b] then
-        gradOutput[1][b]:add(above[b])
+    if timeAxis == 2 then
+      for b=1,batchSize do
+        if t <= lengths[b] then
+          gradOutput[1][b]:add(above[b])
+        end
       end
+    else
+      -- With only one sequence we know we can use the whole thing.
+      gradOutput[1]:add(above)
     end
       
     -- Only get messages from the right if we're not at the right-most edge or
     -- this batch member's sequence doesn't extend right.
     if t < len then
       local lstmRight = self.lstms[1][t+1]
-      for b=1,batchSize do
-        if t < lengths[b] then
-          -- message from h
-          gradOutput[1][b]:add(lstmRight.gradInput[1][b])
-          -- message from c
-          gradOutput[2][b]:add(lstmRight.gradInput[2][b])
+      if timeAxis == 2 then
+        for b=1,batchSize do
+          if t < lengths[b] then
+            -- message from h
+            gradOutput[1][b]:add(lstmRight.gradInput[1][b])
+            -- message from c
+            gradOutput[2][b]:add(lstmRight.gradInput[2][b])
+          end
         end
+      else
+        -- message from h
+        gradOutput[1]:add(lstmRight.gradInput[1])
+        -- message from c
+        gradOutput[2]:add(lstmRight.gradInput[2])
       end
     end
 
     -- Backward propagate this memory cell
-    local x = input:select(2,t)
+    local x = input:select(timeAxis,t)
     if t == 1 then
       h = self.h:zero()
       c = self.c:zero()
@@ -118,7 +159,7 @@ function MemoryChainDirect:updateGradInput(tuple, upstreamGradOutput)
       c = self.lstms[1][t-1].output[2]
     end
     self.lstms[1][t]:backward({h, c, x}, gradOutput)
-    self.gradInput[1]:select(2,t):copy(self.lstms[1][t].gradInput[3])
+    self.gradInput[1]:select(timeAxis,t):copy(self.lstms[1][t].gradInput[3])
   end
   return self.gradInput
 end

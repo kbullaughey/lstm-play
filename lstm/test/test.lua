@@ -27,6 +27,65 @@ finiteDifferenceApprox = function(x, f, h)
   return grad
 end
 
+function suite.MemoryChainDirectForwardBatch()
+  local maxLen = 4
+  local H = 3
+  local F = 2
+  local B = 5
+  local chain = lstm.MemoryChainDirect(F,{H},maxLen)
+  local x = torch.rand(B,maxLen,F)
+  local lengths = torch.Tensor(B):fill(maxLen)
+  local out = chain:forward({x,lengths})
+  local expected = torch.LongTensor({B,maxLen,H})
+  local outSize = torch.LongTensor(out:size():totable())
+  tester:eq(outSize, expected, 0, "forward output has correct size, batch")
+end
+
+function suite.MemoryChainDirectForwardNonBatch()
+  local maxLen = 4
+  local H = 3
+  local F = 2
+  local chain = lstm.MemoryChainDirect(F,{H},maxLen)
+  local x = torch.rand(maxLen,F)
+  local out = chain:forward({x})
+  local expected = torch.LongTensor({maxLen,H})
+  local outSize = torch.LongTensor(out:size():totable())
+  tester:eq(outSize, expected, 0, "forward output has correct size, non-batch")
+end
+
+function suite.MemoryChainDirectForwardBackwardBatch()
+  local maxLen = 4
+  local H = 3
+  local F = 2
+  local B = 5
+  local chain = lstm.MemoryChainDirect(F,{H},maxLen)
+  local x = torch.rand(B,maxLen,F)
+  local lengths = torch.Tensor(B):fill(maxLen)
+  chain:forward({x,lengths})
+  local gradAbove = torch.rand(B,maxLen,H)
+  local gradBelow = chain:backward({x,lengths}, gradAbove)
+  local outSizeInput = torch.LongTensor(gradBelow[1]:size():totable())
+  local outSizeLength = torch.LongTensor(gradBelow[2]:size():totable())
+  local expOutSizeInput = torch.LongTensor(x:size():totable())
+  local expOutSizeLength = torch.LongTensor(lengths:size():totable())
+  tester:eq(outSizeInput, expOutSizeInput, 0, "grad wrt inputs has correct size, batch")
+  tester:eq(outSizeLength, expOutSizeLength, 0, "grad wrt lengths has correct size, batch")
+end
+
+function suite.MemoryChainDirectForwardBackwardNonBatch()
+  local maxLen = 4
+  local H = 3
+  local F = 2
+  local chain = lstm.MemoryChainDirect(F,{H},maxLen)
+  local x = torch.rand(maxLen,F)
+  chain:forward({x})
+  local gradAbove = torch.rand(maxLen,H)
+  local gradBelow = chain:backward({x}, gradAbove)
+  local outSizeInput = torch.LongTensor(gradBelow[1]:size():totable())
+  local expOutSizeInput = torch.LongTensor(x:size():totable())
+  tester:eq(outSizeInput, expOutSizeInput, 0, "grad wrt inputs has correct size, non-batch")
+end
+
 function suite.MixtureGateExampleForward()
   local mg = lstm.MixtureGate()
   local g = torch.rand(3)
