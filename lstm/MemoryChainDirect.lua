@@ -63,6 +63,7 @@ function MemoryChainDirect:updateOutput(tuple)
   else
     error("Expecting 2D or 3D tensor")
   end
+  assert(self.maxLength >= longestExample, "Sequence is too long: " .. longestExample)
 
   -- Iterate over memory cells feeding each successive tuple (h,c) into the next
   -- LSTM memory cell.

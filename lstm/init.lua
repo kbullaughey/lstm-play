@@ -22,6 +22,7 @@ require 'lstm.PartialCrossEntropyCriterion'
 require 'lstm.D'
 
 lstm.NoGrad = require 'lstm.NoGrad'
+lstm.RegularizationMask = require 'lstm.RegularizationMask'
 
 lstm.ping = function()
   return "pong"
