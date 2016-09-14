@@ -66,6 +66,9 @@ function ReverseSequence:updateOutput(tuple)
       local len = lengths[b]
       local tDim = self.timeDimension
       -- this will be len, len-1, ..., 1
+      if len > maxTime then
+        error("length of batch " .. b .. " is too large: " .. len .. " > " .. maxTime)
+      end
       local trimmedReversedIndices = reversedIndices:narrow(1, maxTime-len+1, len)
       local seqReversed = inputs[b]:narrow(tDim, 1, len):index(tDim, trimmedReversedIndices)
       self.output[b]:narrow(tDim, 1, len):copy(seqReversed)
