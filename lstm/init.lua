@@ -19,6 +19,7 @@ require 'lstm.GRUChainDirect'
 require 'lstm.InvertIndex'
 require 'lstm.MixtureGate'
 require 'lstm.PartialCrossEntropyCriterion'
+require 'lstm.SelectTerminal'
 require 'lstm.D'
 
 lstm.NoGrad = require 'lstm.NoGrad'

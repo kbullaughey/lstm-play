@@ -1,14 +1,17 @@
 -- This module enables one to use batch mode with sequences of different lengths.
--- It takes two inputs, the first is a tensor of size BxHxL and the second is a
+-- It takes two inputs, the first is a tensor of size BxLxH and the second is a
 -- vector of length B, where B is the batch size, H is the length of the LSTM's
 -- hidden state and L is the longest possible sequence. The vector contains the
 -- sequence length of each batch item. It's used to select the appropriate column
 -- from the first input. The output is a BxH matrix with each row the column selected
 -- from the first input.
-local SelectTerminal, parent = torch.class('nn.SelectTerminal', 'nn.Module')
+local SelectTerminal, parent = torch.class('lstm.SelectTerminal', 'nn.Module')
 
 function SelectTerminal:__init()
   parent.__init(self)
+  self.scratchA = torch.Tensor()
+  self.scratchB = torch.Tensor()
+  self.gradInput = {self.scratchA, self.scratchB}
 end
 
 function SelectTerminal:updateOutput(tuple)
@@ -29,12 +32,12 @@ end
 
 function SelectTerminal:updateGradInput(tuple, gradOutput)
   local input, lengths = self:splitTuple(tuple)
-  self.gradInput:resizeAs(input)  
-  self.gradInput:zero()
+  self.scratchA:resizeAs(input):zero()
+  self.scratchB:resizeAs(lengths):zero()
   local B = input:size(1)
   for b=1,B do
     local lastHidden = lengths[b]
-    self.gradInput[b][lastHidden]:copy(gradOutput[b])
+    self.gradInput[1][b][lastHidden]:copy(gradOutput[b])
   end
   return self.gradInput
 end 
