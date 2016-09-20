@@ -102,7 +102,7 @@ function ReverseSequence:updateGradInput(tuple, upstreamGradOutput)
   local gradTuple = {upstreamGradOutput, lengths}
   local reverser = lstm.localize(lstm.ReverseSequence(self.timeDimension))
   local reversedGrad = reverser:forward(gradTuple)
-  gradWrtInputs:resizeAs(inputs):zero():copy(reversedGrad)
+  gradWrtInputs:resizeAs(inputs):copy(reversedGrad)
   if lengths ~= nil then
     gradWrtLengths:resizeAs(lengths):zero()
   end
