@@ -33,22 +33,20 @@ I will use the module for doing a linear map as an example. I will use a context
 Here's a matrix that represents clockwise rotation by 90&deg; and a point at coordinates (2,0):
 
 <pre>
-th> rotate = torch.Tensor{0,1,0,-1,0,0,0,0,1}
- 0  1  0
--1  0  0
- 0  0  1
-[torch.DoubleTensor of size 3x3]
-th> x = torch.Tensor{2,0,1}
+th> rotate = torch.Tensor{{0,1},{-1,0}}
+ 0  1
+-1  0
+[torch.DoubleTensor of size 2x2]
+th> x = torch.Tensor{2,0}
  2
  0
- 1
-[torch.DoubleTensor of size 3]
+[torch.DoubleTensor of size 2]
 </pre>
 
 We can then declare a linear map nn module, copy in the parameters for our linear map (setting the bias to zero):
 
 {% highlight lua %}
-m = nn.Linear(3,3)
+m = nn.Linear(2,2)
 m:parameters()[1]:copy(rotate)
 m:parameters()[2]:zero()
 {% endhighlight %}
@@ -59,8 +57,7 @@ Now, when we do forward propagation, we simply performing matrix multiplication,
 th> m:forward(x)
  0
 -2
- 1
-[torch.DoubleTensor of size 3]
+[torch.DoubleTensor of size 2]
 </pre>
 
 ### A classic feed-forward, MLP
