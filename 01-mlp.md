@@ -32,6 +32,7 @@ I will use the module for doing a linear map as an example. I will use a context
 
 Here's a matrix that represents clockwise rotation by 90&deg; and a point at coordinates (2,0):
 
+{% raw %}
 <pre>
 th> rotate = torch.Tensor{{0,1},{-1,0}}
  0  1
@@ -42,6 +43,7 @@ th> x = torch.Tensor{2,0}
  0
 [torch.DoubleTensor of size 2]
 </pre>
+{% endraw %}
 
 We can then declare a linear map nn module, copy in the parameters for our linear map (setting the bias to zero):
 
