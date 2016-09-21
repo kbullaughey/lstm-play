@@ -43,7 +43,7 @@ plot_staged_figures <- function(closures, masks) {
 pdf(file="figure_1.pdf", height=4, width=4)
 par(mar=c(4,4,1,1), mgp=c(2,0.8,0), cex.lab=1, cex.axis=0.8)
 plot(y_grid, x_grid, type="l", xlab="input", ylab="output")
-abline(v=-3)
+abline(v=2.6)
 dev.off()
 
 #---------
