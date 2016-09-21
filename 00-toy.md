@@ -32,7 +32,7 @@ Another way to visualize this being not uniquely determined is to consider how s
   <img src="{{"/assets/toy/figure_4a-1.png" | prepend: site.baseurl }}">
 </div>
 
-In order to make the problem more solveable and relevant to RNN and LSTM neural nets, we add a sequential aspect to this modeling problem, considering three inputs instead of one. One (arbitrary) way to do this is to consider three evenly spaced points in the original mapping (z, z-1, z-2). Each of these can be transformed by our function with some noise added: (f(z)+e f(z-1)+e, f(z-2)+2) where e ~ N(0, 0.16). We then can consider these three values as the inputs, and our goal is to predict what is the original z:
+In order to make the problem more solveable and relevant to RNN and LSTM neural nets, we add a sequential aspect to this modeling problem, considering three inputs instead of one. One (arbitrary) way to do this is to consider three evenly spaced points in the original mapping: z, z-1, z-2 (z is the vertical position marked with a dotted line in the next figure). Each of these can be transformed by our function with some noise added: (f(z)+e f(z-1)+e, f(z-2)+2) where e ~ N(0, 0.16). We then can consider these three values as the inputs, and our goal is to predict what is the original z:
 
 <div class="standard-image">
   <img src="{{"/assets/toy/figure_2-1.png" | prepend: site.baseurl }}">
