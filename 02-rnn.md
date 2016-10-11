@@ -11,7 +11,7 @@ In this example, we'll build a single-layer recursive neural net. We'll reuse th
 
 ### nngraph
 
-We did reasonably well using the stock <code>nn</code> library to build a simple MLP. However, for more complicated architectures, the <code>nngraph</code> package offers an additional layer abstraction that proves quite useful. If you're not familiar with <code>nngraph</code> you may want to see [my brief introduction]({% post_url 2015-09-18-introduction-to-nngraph %}).
+We did reasonably well using the stock <code>nn</code> library to build a simple MLP. However, for more complicated architectures, the <code>nngraph</code> package offers an additional layer abstraction that proves quite useful. If you're not familiar with <code>nngraph</code> you may want to see [my brief introduction]({{ site.baseurl }}{% post_url 2015-09-18-introduction-to-nngraph %}).
 
 ### RNN implementation
 
