@@ -15,11 +15,11 @@ LSTMs supposedly have a major advantage in that they can capture long-term depen
 
 Although standard RNNs can also model sequences or arbitrary length, I have delayed adapting our toy model for that purpose until now. Now we will model sequences of either 2, 3, or 4 inputs, in approximately equal proportions.
 
-Torch is first and foremost a tensor library and efficient computation on modern hardware (GPU or otherwise) requires nice, non-raggad matricies. But this is potentially a problem if we want to operate stochastic gradient descent in mini-batch mode, as each sequence will be a different length. 
+Torch is first and foremost a tensor library and efficient computation on modern hardware (GPU or otherwise) requires nice, non-ragged matrices. But this is potentially a problem if we want to operate stochastic gradient descent in mini-batch mode, as each sequence will be a different length. 
 
 The encoding scheme we will adapt is padding each sequence of inputs with zeros, up to a pre-defined maximum length. This allows us to pre-allocate a chain of LSTM units of this length, enabling us to rely on their persisted internal state during forward and backward propagation.
 
-We will also need to pass information about the sequence lengths. This is impotant for not treating the zero padding as actual inputs, and from injecting the error signal at the right unit in the sequence during back propagation.
+We will also need to pass information about the sequence lengths. This is important for not treating the zero padding as actual inputs, and from injecting the error signal at the right unit in the sequence during back propagation.
 
 We will represent this as an additional set of inputs. In total we will need to pass four tensors during propagation:
 
@@ -80,7 +80,7 @@ th> trainingDataset[1][1][4]
  0  1  0  0
 </pre>
 
-We can then use basic <code>nn</code> components to buil a small graph that will take all the hidden state matrices for all timesteps and extract out just the terminal one for each batch member (lengthIndicators is the one-hot encoding of lengths).
+We can then use basic <code>nn</code> components to build a small graph that will take all the hidden state matrices for all timesteps and extract out just the terminal one for each batch member (lengthIndicators is the one-hot encoding of lengths).
 
 Code Fragment X (referred to below):
 
@@ -234,7 +234,7 @@ This first plot is using the same fixed-width data set as our RNN example and us
 
 This LSTM converges nearly 2x as fast as the RNN despite all the additional parameters.
 
-After adding our kluge for variable length sequences ([in this script](https://github.com/kbullaughey/lstm-play/blob/master/toys/lstm/model-1_layer-variable.lua)), we get similar results:
+After adding our kludge for variable length sequences ([in this script](https://github.com/kbullaughey/lstm-play/blob/master/toys/lstm/model-1_layer-variable.lua)), we get similar results:
 
 <div class="standard-image">
   <img src="{{"/assets/lstm/model-1_layer-variable-1.png" | prepend: site.baseurl }}">
