@@ -26,7 +26,8 @@ This will result in a somewhat wavy function, and by considering the inverse map
   <img src="{{"/assets/toy/figure_1-1.png" | prepend: site.baseurl }}">
 </div>
 
-Another way to visualize this being not uniquely determined is to consider how similar inputs are to each other even when they correspond to outputs that are far apart. The following figure shows how similar each input is to each other input. Each cell (i,j) shows how similar an input i is to input j. As exepcted, the diaognal is perfectly similar to itself (white), but there are plenty of off-diagonal similar cells to make the mapping confusing:
+Another way to visualize this being not uniquely determined is to consider how similar inputs are to each other even when they correspond to outputs that are far apart. The following figure shows how similar each input is to each other input. The grayscale intensity is |f(z)-f(z')| and the axes are z and z'. The point is to illustrate why learning a mapping that is not one-to-one is challenging and would benefit from sequential information. Consider a point on the horizontal axis, z. There are several values of z' on the vertical axis that produce f(z) - f(z') near zero (white). Thus, if you have a value, a = f(z), and you want to feed this to your neural net to get back z, it's non-identifiable. 
+As exepcted, the diaognal is perfectly similar to itself (white), but there are plenty of off-diagonal similar cells to make the mapping confusing:
 
 <div class="standard-image">
   <img src="{{"/assets/toy/figure_4a-1.png" | prepend: site.baseurl }}">
@@ -40,7 +41,8 @@ In order to make the problem more solveable and relevant to RNN and LSTM neural 
 
 In the above plot, the inputs are marked by the three blue triangles at the bottom. The output we're trying to predict is the red dotted line at z. The inputs are derived by adding two points evenly spaced below z, computing their corresponding f(z) values and adding some noise.
 
-We can now consider the similarity of input vectors to each other. Now the diagonal is much more promenant. The sequential information is clearly helping:
+Instead of having just one point a = f(z), we have a vector values, (a, b, c), where we know that these must have been produced by some f(z), f(z-1), f(z-2). This problem is much easier. We can illustrate using a similar figure to one above. In this next figure, the grayscale intensity is the Euclidean distance between (f(z), f(z-1), f(z-2)) and (f(z'), f(z'-1), f(z'-2)).
+Now the diagonal is much more promenant and the sequential information is clearly helping.
 
 <div class="standard-image">
   <img src="{{"/assets/toy/figure_4b-1.png" | prepend: site.baseurl }}">
