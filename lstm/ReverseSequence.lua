@@ -44,7 +44,7 @@ function ReverseSequence:updateOutput(tuple)
   if torch.isTensor(tuple) then
     inputs = tuple
   else
-    inputs, lengths = unpack(tuple)
+    inputs, lengths = table.unpack(tuple)
   end
   local batchSize, maxTime
   if lengths == nil then
@@ -87,7 +87,7 @@ function ReverseSequence:updateGradInput(tuple, upstreamGradOutput)
       self.gradInput = self.scratchA
     end
   else
-    inputs, lengths = unpack(tuple)
+    inputs, lengths = table.unpack(tuple)
     if not torch.type(self.gradInput) == "table" then
       self.gradInput = {self.scratchA, self.scratchB}
     end

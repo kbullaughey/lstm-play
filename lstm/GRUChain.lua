@@ -66,28 +66,32 @@ function Class:__init(inputSize, hiddenSizes, maxLength, dropout)
   self.gradOutputScratch = lstm.Tensor():typeAs(self.output)
 end
 
-function Class:setupSharing()
+function Class:setupSharing(refMaps)
+  refMaps = refMaps or self.linearMaps
   for l=1,self.numLayers do
     -- Set up parameter sharing among respective learn maps of each unit for
     -- this layer. Distinct layers do not share parameters.
-    local referenceMaps = self.linearMaps[l][1]
+    local referenceMaps = refMaps[l][1]
     local linearMapsPerGRUCell = #referenceMaps
-    for t=2,self.maxLength do
+    for t=1,self.maxLength do
       if #self.linearMaps[l][t] ~= linearMapsPerGRUCell then
         error("unexpected number of linear maps: " .. #self.linearMaps[l][t])
       end
-      for i=1,linearMapsPerGRUCell do
-        local src = referenceMaps[i]
-        local map = self.linearMaps[l][t][i]
-        local srcPar, srcGradPar = src:parameters()
-        local mapPar, mapGradPar = map:parameters()
-        if #srcPar ~= #mapPar or #srcGradPar ~= #mapGradPar then
-          error("parameters structured funny, won't share")
+      -- We ony share a t==1 if we're sharing with another chain's refMaps.
+      if refMaps ~= self.linearMaps or t > 1 then
+        for i=1,linearMapsPerGRUCell do
+          local src = referenceMaps[i]
+          local map = self.linearMaps[l][t][i]
+          local srcPar, srcGradPar = src:parameters()
+          local mapPar, mapGradPar = map:parameters()
+          if #srcPar ~= #mapPar or #srcGradPar ~= #mapGradPar then
+            error("parameters structured funny, won't share")
+          end
+          mapPar[1]:set(srcPar[1])
+          mapPar[2]:set(srcPar[2])
+          mapGradPar[1]:set(srcGradPar[1])
+          mapGradPar[2]:set(srcGradPar[2])
         end
-        mapPar[1]:set(srcPar[1])
-        mapPar[2]:set(srcPar[2])
-        mapGradPar[1]:set(srcGradPar[1])
-        mapGradPar[2]:set(srcGradPar[2])
       end
     end
   end
@@ -117,7 +121,7 @@ end
 -- Input is 3D with the first dimension batch, second dimension is sequence and the
 -- last dimenion is features.
 function Class:updateOutput(tuple)
-  local input, lengths = unpack(tuple)
+  local input, lengths = table.unpack(tuple)
   if input:dim() ~= 3 then
     error("expecting a 3D input")
   end
@@ -129,7 +133,7 @@ function Class:updateOutput(tuple)
   -- Storage for output
   local topLayer = self.numLayers
   local topLayerSize = self.hiddenSizes[topLayer]
-  self.output:resize(batchSize, topLayerSize)
+  self.output:resize(batchSize, topLayerSize):zero()
 
   for l=1, self.numLayers do
     local h = self:initialState(l, batchSize)
@@ -143,6 +147,8 @@ function Class:updateOutput(tuple)
       else
         x = self.grus[l-1][t].output
       end
+      assert(self.grus[l], "Missing gru at layer " .. l)
+      assert(self.grus[l][t], "Missing gru at layer " .. l .. " timestep " .. t)
       h = self.grus[l][t]:forward({h, x})
     end
   end
@@ -151,9 +157,16 @@ function Class:updateOutput(tuple)
   -- output tensor.
   for b=1, batchSize do
     local batchMemberLength = localLengths[b]
-    local unit = self.grus[topLayer][batchMemberLength]
-    h = unit.output
-    self.output[b]:copy(h[b])
+    if batchMemberLength > 0 then
+      local unit = self.grus[topLayer][batchMemberLength]
+      if unit == nil then
+        error("No unit at timestep " .. batchMemberLength .. " for batch member " .. b)
+      end
+      h = unit.output
+      self.output[b]:copy(h[b])
+    else
+      self.output[b]:zero()
+    end
   end
   return self.output
 end
@@ -164,7 +177,7 @@ end
 -- isn't necessarily the last cell in the `grus` array because sequences
 -- are different lengths.
 function Class:updateGradInput(tuple, upstreamGradOutput)
-  local input, lengths = unpack(tuple)
+  local input, lengths = table.unpack(tuple)
   local batchSize = input:size(1)
   local len = input:size(2)
 

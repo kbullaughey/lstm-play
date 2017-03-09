@@ -62,6 +62,8 @@ function debugger:describe(thing)
     return self:describeTensor(thing)
   elseif t == "nil" then
     return "nil"
+  elseif t == "string" then
+    return thing
   else
     error("Unexpected type: " .. t)
   end

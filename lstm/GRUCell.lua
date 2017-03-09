@@ -14,6 +14,7 @@
 --  2. The list of linear maps generated (used for parameter sharing).
 --  3. The dropout module.
 local GRUCell = function(prev_h, x, inputSize, hiddenSize, dropRate)
+  assert(dropRate ~= nil, "Must specificy dropout rate")
   -- Keep track of the linear maps we insert. This helps with parameter
   -- sharing later
   local linearMaps = {}
@@ -49,7 +50,7 @@ local GRUCell = function(prev_h, x, inputSize, hiddenSize, dropRate)
     nn.CMulTable()({z_gate, dropoutMod(h_tilda)})
   })
 
-  return {h}, linearMaps, dropoutMod
+  return {h}, linearMaps, nil
 end
 
 return GRUCell

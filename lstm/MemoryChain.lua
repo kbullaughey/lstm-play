@@ -108,7 +108,7 @@ end
 -- If input is 3D then the first dimension is batch, otherwise the first dim
 -- is the sequence. Last dimension is features.
 function MemoryChain:updateOutput(tuple)
-  local input, lengths = unpack(tuple)
+  local input, lengths = table.unpack(tuple)
   if input:dim() ~= 3 then
     error("expecting a 3D input")
   end
@@ -135,7 +135,7 @@ function MemoryChain:updateOutput(tuple)
       else
         x = self.lstms[l-1][t].output[1]
       end
-      h, c = unpack(self.lstms[l][t]:forward({h, c, x}))
+      h, c = table.unpack(self.lstms[l][t]:forward({h, c, x}))
     end
   end
 
@@ -156,7 +156,7 @@ end
 -- isn't necessarily the last memory cell in the `lstms` array because sequences
 -- are different lengths.
 function MemoryChain:updateGradInput(tuple, upstreamGradOutput)
-  local input, lengths = unpack(tuple)
+  local input, lengths = table.unpack(tuple)
   local batchSize = input:size(1)
   local len = input:size(2)
 

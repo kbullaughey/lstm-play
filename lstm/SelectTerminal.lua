@@ -43,7 +43,7 @@ function SelectTerminal:updateGradInput(tuple, gradOutput)
 end 
 
 function SelectTerminal:splitTuple(tuple)
-  local input, lengths = unpack(tuple)
+  local input, lengths = table.unpack(tuple)
   if input:dim() ~= 3 then
     error("Expecting a 3D input tensor")
   end

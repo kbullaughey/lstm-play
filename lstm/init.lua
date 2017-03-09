@@ -24,6 +24,7 @@ require 'lstm.D'
 
 lstm.NoGrad = require 'lstm.NoGrad'
 lstm.RegularizationMask = require 'lstm.RegularizationMask'
+lstm.Installer = require 'lstm.Installer'
 
 lstm.ping = function()
   return "pong"

@@ -22,7 +22,7 @@ end
 -- is the sequence. Last dimension is features.
 -- Output is size BxLxH
 function MemoryChainDualDirect:updateOutput(tuple)
-  local input, lengths = unpack(tuple)
+  local input, lengths = table.unpack(tuple)
   if input:dim() ~= 3 then
     error("expecting a 3D input")
   end
@@ -42,7 +42,7 @@ function MemoryChainDualDirect:updateOutput(tuple)
   -- LSTM memory cell.
   for t=1,longestExample do
     local x = input:select(2, t)
-    h, c = unpack(self.lstms[1][t]:forward({h, c, x}))
+    h, c = table.unpack(self.lstms[1][t]:forward({h, c, x}))
     -- At present we copy all timesteps for all batch members. It's up to the
     -- prediction layer to only use the ones that are relevant for each batch
     -- memeber.
@@ -56,7 +56,7 @@ end
 -- and H is hidden state size. It contains the gradient of the objective function
 -- wrt outputs from the LSTM memory cell at each position in the sequence.
 function MemoryChainDualDirect:updateGradInput(tuple, upstreamGradOutput)
-  local input, lengths = unpack(tuple)
+  local input, lengths = table.unpack(tuple)
   local batchSize = input:size(1)
   local len = input:size(2)
   self.gradInput[1]:resize(batchSize, len, self.inputSize):zero()

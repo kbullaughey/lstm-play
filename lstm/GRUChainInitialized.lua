@@ -18,13 +18,13 @@ end
 -- If input is 3D then the first dimension is batch, otherwise the first dim
 -- is the sequence. Last dimension is features.
 function Class:updateOutput(tuple)
-  local initial, input, lengths = unpack(tuple)
+  local initial, input, lengths = table.unpack(tuple)
   self.initial = initial
   return parent.updateOutput(self, {input,lengths})
 end
 
 function Class:updateGradInput(tuple, upstreamGradOutput)
-  local initial, input, lengths = unpack(tuple)
+  local initial, input, lengths = table.unpack(tuple)
   parent.updateGradInput(self, {input,lengths}, upstreamGradOutput)
   return self.allGradInput
 end

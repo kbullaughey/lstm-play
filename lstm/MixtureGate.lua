@@ -13,7 +13,7 @@ end
 
 -- This expects a table of three elements, g, a, b
 function MixtureGate:updateOutput(tuple)
-  local g, a, b = unpack(tuple)
+  local g, a, b = table.unpack(tuple)
   self.output:resizeAs(g)
   -- g@a + (1-g)@b = g@a - g@b + b
   self.output:cmul(g,a)
@@ -22,7 +22,7 @@ function MixtureGate:updateOutput(tuple)
 end
 
 function MixtureGate:updateGradInput(tuple, upstreamGradOutput)
-  local g, a, b = unpack(tuple)
+  local g, a, b = table.unpack(tuple)
   self.gradInput[1]:resizeAs(g)
   self.gradInput[2]:resizeAs(a)
   self.gradInput[3]:resizeAs(b)

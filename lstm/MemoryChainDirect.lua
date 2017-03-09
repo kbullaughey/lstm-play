@@ -34,7 +34,7 @@ function MemoryChainDirect:updateOutput(tuple)
   if torch.isTensor(tuple) then
     input = tuple
   else
-    input, lengths = unpack(tuple)
+    input, lengths = table.unpack(tuple)
   end
   local batchSize
   local longestExample
@@ -69,7 +69,7 @@ function MemoryChainDirect:updateOutput(tuple)
   -- LSTM memory cell.
   for t=1,longestExample do
     local x = input:select(timeAxis, t)
-    h, c = unpack(self.lstms[1][t]:forward({h, c, x}))
+    h, c = table.unpack(self.lstms[1][t]:forward({h, c, x}))
     -- At present we copy all timesteps for all batch members. It's up to the
     -- prediction layer to only use the ones that are relevant for each batch
     -- memeber.
@@ -91,7 +91,7 @@ function MemoryChainDirect:updateGradInput(tuple, upstreamGradOutput)
       self.gradInput = self.scratchA
     end
   else
-    input, lengths = unpack(tuple)
+    input, lengths = table.unpack(tuple)
     if not torch.type(self.gradInput) == "table" then
       self.gradInput = {self.scratchA, self.scratchB}
     end
