@@ -1,7 +1,5 @@
 #!/usr/bin/env th
 
-socket = require 'socket'
-
 -- enable profiling
 --jitp = require('jit.p')
 --jitp.start("Fl1i1")
@@ -33,6 +31,7 @@ if use_cuda then
   cutorch = require 'cutorch'
   deviceParams = cutorch.getDeviceProperties(1)
   Tensor = torch.CudaTensor
+  print("Using GPU")
 else
   Tensor = torch.Tensor
 end
@@ -50,7 +49,7 @@ for i=1,K do
 end
 
 print("# running.")
-start_time = socket.gettime()
+start_time = torch.tic()
 dataset = {}
 for i=1,reps do
   local x = Tensor(2,M):uniform()
@@ -64,7 +63,7 @@ for i=1,reps do
   map:forward(x)
   map:backward(x,y)
 end
-elapsedTime = socket.gettime() - start_time
+elapsedTime = torch.tic() - start_time
 print("# done.")
 print("# M,maps,reps,mode,elapsed_time")
 local gpuString
