@@ -27,7 +27,7 @@ function Class:updateOutput(tuple)
   local batchSize = input:size(1)
   local longestExample = input:size(2)
   lstm.sync()
-  local localLengths = lengths:typeAs(torch.Tensor())
+  local localLengths = lengths:typeAs(lstm.Tensor())
 
   -- Storage for output
   assert(self.numLayers == 1, "Only one layer supported")
@@ -78,7 +78,7 @@ function Class:updateGradInput(tuple, upstreamGradOutput)
   self.allGradInput[2]:resize(batchSize, len, self.inputSize):zero()
   self.allGradInput[3]:resizeAs(lengths):zero()
   lstm.sync()
-  local localLengths = lengths:typeAs(torch.Tensor())
+  local localLengths = lengths:typeAs(lstm.Tensor())
 
   if input:dim() ~= 3 then
     error("GRUChainDirect:updageGradInput is expecting a 3D input tensor")
