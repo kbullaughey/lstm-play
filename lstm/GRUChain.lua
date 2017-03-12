@@ -127,8 +127,7 @@ function Class:updateOutput(tuple)
   end
   local batchSize = input:size(1)
   local longestExample = input:size(2)
-  lstm.sync()
-  local localLengths = lengths:typeAs(lstm.Tensor())
+  --lstm.sync()
 
   -- Storage for output
   local topLayer = self.numLayers
@@ -156,7 +155,7 @@ function Class:updateOutput(tuple)
   -- Copy the terminal output of the top layer for each batch member into the
   -- output tensor.
   for b=1, batchSize do
-    local batchMemberLength = localLengths[b]
+    local batchMemberLength = lengths[b]
     if batchMemberLength > 0 then
       local unit = self.grus[topLayer][batchMemberLength]
       if unit == nil then
@@ -185,8 +184,7 @@ function Class:updateGradInput(tuple, upstreamGradOutput)
   self.allGradInput[1]:resize(batchSize, self.hiddenSizes[1]):zero()
   self.allGradInput[2]:resize(batchSize, len, self.inputSize):zero()
   self.allGradInput[3]:resizeAs(lengths):zero()
-  lstm.sync()
-  local localLengths = lengths:typeAs(lstm.Tensor())
+  --lstm.sync()
 
   if input:dim() ~= 3 then
     error("GRUChain:updageGradInput is expecting a 3D input tensor")
@@ -214,7 +212,7 @@ function Class:updateGradInput(tuple, upstreamGradOutput)
           -- where there are batch members that teriminate here.
           gradOutput = self.gradOutputScratch:zero()
           for b=1,batchSize do
-            if localLengths[b] == t then
+            if lengths[b] == t then
               gradOutput[b]:add(upstreamGradOutput[b])
             end
           end
@@ -232,7 +230,7 @@ function Class:updateGradInput(tuple, upstreamGradOutput)
         if l == topLayer then
           -- Only copy messages from above if the batch member terminates here.
           for b=1,batchSize do
-            if localLengths[b] == t then
+            if lengths[b] == t then
               gradOutput[b]:add(upstreamGradOutput[b])
             end
           end
