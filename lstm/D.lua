@@ -1,5 +1,12 @@
 -- D works like an nn.Identity node, can emit logging information
-local D, parent = torch.class('lstm.D', 'nn.Identity')
+--
+-- It can also permute tensors (if the node takes a single tensor as input).
+-- When permuting is enabled, it will permute the first dimension, when
+-- enabled, which is assumed to be the batch dimension. The purpose is to screw
+-- up the relevance of a node to make sure it is contributing signal to the
+-- predictions. It only permute during the forward pass and is not meant to be
+-- used during training.
+local Class, parent = torch.class('lstm.D', 'nn.Identity')
 
 local lastTime = nil
 
@@ -18,32 +25,62 @@ local elapsedTime = function()
   return math.floor(e*1000)
 end
 
-function D:received(direction, input, grad)
+function Class:received(direction, input, grad)
   self:logMessage(direction .. " input: " .. lstm.debugger:describe(input))
   if direction == "backward" then
     self:logMessage(direction .. " gradOutput: " .. lstm.debugger:describe(grad))
   end
 end
 
-function D:__init(label)
+function Class:__init(label)
   self.label = label or "unlabeled"
+  self.shouldPermute = false
   if lstm.debugger.enabled then
     self:logMessage("init")
   end
 end
 
-function D:logMessage(msg)
+function Class:logMessage(msg)
   print("D[" .. self.label .. "|" .. elapsedTime() .. "]: " .. msg)
 end
 
-function D:updateOutput(input)
+-- To turn it on, give it a major and minor, to turn it off, give it false
+function Class:permute(major, minor)
+  if type(major) == "boolean" then
+    assert(major == false, "Must pass false to turn permutation off")
+    self.shouldPermute = false
+  else
+    self.major = major
+    self.minor = minor
+    self.shouldPermute = true
+    self.storage = self.storage or lstm.Tensor()
+    self.gradStorage = self.gradStorage or lstm.Tensor()
+    self.perm = lstm.localize(torch.LongTensor())
+  end
+  return self
+end
+
+function Class:updateOutput(input)
   if lstm.debugger.enabled then
     self:received("forward", input)
   end
-  return parent.updateOutput(self, input)
+  if self.shouldPermute then
+    self.storage:resizeAs(input)
+    local N = input:size(self.major)
+    self.perm:resize(N)
+    for i=1,input:size(self.minor) do
+      self.perm:randperm(N)
+      local permuted = input:select(self.minor,i):index(self.major,self.perm)
+      self.storage:select(self.minor,i):copy(permuted)
+    end
+    self.output = self.storage
+  else
+    self.output = input
+  end
+  return self.output
 end
 
-function D:updateGradInput(input, gradOutput)
+function Class:updateGradInput(input, gradOutput)
   if lstm.debugger.enabled then
     self:received("backward", input, gradOutput)
   end

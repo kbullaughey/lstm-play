@@ -21,6 +21,7 @@ require 'lstm.MixtureGate'
 require 'lstm.PartialCrossEntropyCriterion'
 require 'lstm.SelectTerminal'
 require 'lstm.D'
+require 'lstm.Permute'
 
 lstm.NoGrad = require 'lstm.NoGrad'
 lstm.RegularizationMask = require 'lstm.RegularizationMask'
