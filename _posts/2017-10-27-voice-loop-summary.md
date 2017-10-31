@@ -163,8 +163,8 @@ All of these samples are out-of-sample (i.e., from the validation set).
 <table>
  <thead>
   <tr>
-  <th>Truth, vocoded</th>
   <th>Modeled, vocoded</th>
+  <th>Truth, vocoded</th>
   <th>Original waveform</th>
   </tr>
  </thead>
@@ -192,8 +192,8 @@ It's worth noting that the in sample audio sounds noticeably better, meaning the
 <table>
  <thead>
   <tr>
-  <th>Truth, vocoded</th>
   <th>Modeled, vocoded</th>
+  <th>Truth, vocoded</th>
   <th>Original waveform</th>
   </tr>
  </thead>
